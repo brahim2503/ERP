@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated admin
+    function isAdmin() {
+      return request.auth != null && (request.auth.token.role == 'admin' || request.auth.token.admin == true);
+    }
+    
+    // Invoices collection (Sales)
+    match /invoices/{invoiceId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if isAdmin();
+    }
+    
+    // WhatsApp Delivery Logs collection (whatsappNotifications)
+    match /whatsappNotifications/{logId} {
+      allow read: if request.auth != null;
+      allow create: if false; // Server-side Cloud Functions write only
+      allow update, delete: if isAdmin();
+    }
+    
+    // Suppliers collection & subcollections
+    match /suppliers/{supplierId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if isAdmin();
+      
+      // Purchase Invoices subcollection
+      match /purchaseInvoices/{invoiceId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null;
+        allow delete: if isAdmin();
+      }
+      
+      // Supplier Payments subcollection
+      match /payments/{paymentId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if isAdmin();
+      }
+      
+      // Supplier Financial Ledger subcollection
+      match /ledger/{entryId} {
+        allow read: if request.auth != null;
+        allow write: if false; // Server-side or system managed ledger only
+      }
+    }
+    
+    // Products Inventory collection
+    match /products/{productId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Settings collection
+    match /settings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+  }
+}
