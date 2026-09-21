@@ -1,0 +1,41 @@
+/* ==========================================================================
+   TOUSHIR ERP — Real Database
+   قاعدة البيانات الحقيقية — يُرجى إدخال البيانات من التطبيق مباشرةً
+   ========================================================================== */
+
+(function () {
+  'use strict';
+
+  window.REAL_DATABASE = {
+    suppliers: [],
+    customers: [],
+    customerLedgers: {},
+    purchaseInvoices: [],
+    salesInvoices: [],
+    products: [],
+    workers: [
+      {
+        id: 'wrk_1',
+        name: 'المدير',
+        role: 'مدير النظام (Admin)',
+        phone: '0600000000',
+        salary: 85000,
+        pin: '1234',
+        status: 'Active',
+        hireDate: new Date().toISOString().slice(0, 10),
+        permissions: ['dashboard', 'pos', 'customers', 'suppliers', 'purchases', 'reports', 'settings']
+      }
+    ],
+    ledgers: {},
+    whatsappNotifications: [],
+    readAlertIds: [],
+    settings: {
+      whatsappProvider: 'meta',
+      whatsappPhoneId: '',
+      whatsappToken: '',
+      currency: 'دج',
+      storeName: 'توشير ERP لتجارة المواد الغذائية',
+      templateText: 'السلام عليكم {{customerName}}،\n\nتم تسجيل عملية شراء بالدين بنجاح.\n\n🧾 رقم الفاتورة: {{invoiceNumber}}\n📅 التاريخ: {{invoiceDate}}\n\nالمنتجات:\n{{productList}}\n\n💰 إجمالي الفاتورة: {{totalAmount}} {{currency}}\n💵 المدفوع: {{amountPaid}} {{currency}}\n📌 المتبقي: {{remainingAmount}} {{currency}}\n📊 رصيدكم الحالي: {{customerBalance}} {{currency}}\n\nشكرًا لتعاملكم معنا، ونتمنى لكم يومًا سعيدًا.'
+    }
+  };
+})();

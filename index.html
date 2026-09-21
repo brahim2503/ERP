@@ -21,66 +21,74 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- HTML5 QR Code & Barcode Camera Scanner Library -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Firebase SDK v9 — compat mode (works without npm/bundler)
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- Firebase App (core — always required) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <!-- Firebase Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <!-- Cloud Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- Firebase Analytics -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
 </head>
 
 <body>
   <script>
     window.ToushirApp = window.ToushirApp || {};
-    window.handleToushirLoginSubmit = function () {
-      if (window.ToushirApp && typeof window.ToushirApp.handleLoginSubmit === 'function' && window.ToushirApp.handleLoginSubmit !== window.handleToushirLoginSubmit) {
-        return window.ToushirApp.handleLoginSubmit();
-      }
+    window.currentLoginMode = 'email';
 
-      const userInput = document.getElementById('login-username-input');
-      const pinInp = document.getElementById('login-pin-input');
-      if (!userInput || !pinInp) return;
+    window.switchLoginMode = function(mode) {
+      window.currentLoginMode = mode;
+      const tabEmail = document.getElementById('tab-login-email');
+      const tabPin = document.getElementById('tab-login-pin');
+      const emailFields = document.getElementById('login-email-fields');
+      const pinFields = document.getElementById('login-pin-fields');
+      const btnLogin = document.getElementById('btn-do-login');
+      const emailActions = document.getElementById('login-email-actions');
+      const errBox = document.getElementById('login-error-msg');
+      if (errBox) errBox.style.display = 'none';
 
-      const rawUsername = (userInput.value || '').trim();
-      const enteredPin = (pinInp.value || '').trim();
-
-      const norm = s => (s || '').replace(/[\u0640\u064B-\u065F]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const cleanInput = norm(rawUsername);
-
-      const defaultWorkers = [
-        { id: 'wrk_1', name: 'المدير', pin: '1234', role: 'مدير النظام' }
-      ];
-
-      const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
-      let workers = (window.ToushirStore && window.ToushirStore.workers && window.ToushirStore.workers.length > 0)
-        ? window.ToushirStore.workers.filter(w => !demoNames.includes(w.name))
-        : defaultWorkers;
-      if (workers.length === 0) workers = defaultWorkers;
-
-      let worker = workers.find(w => norm(w.name) === cleanInput) ||
-        workers.find(w => norm(w.name).includes(cleanInput)) ||
-        workers.find(w => cleanInput.includes(norm(w.name))) ||
-        workers.find(w => norm(w.name).split(' ')[0] === cleanInput.split(' ')[0]) ||
-        workers[0];
-
-      if (worker && worker.pin && enteredPin && enteredPin !== worker.pin) {
-        if (errorMsg) {
-          errorMsg.textContent = '⚠️ رمز PIN غير صحيح! يرجى إعادة المحاولة.';
-          errorMsg.style.display = 'block';
-        }
-        return;
-      }
-
-      sessionStorage.setItem('toushir_logged_in', 'true');
-      if (window.ToushirStore) {
-        window.ToushirStore.currentWorkerId = worker ? worker.id : 'wrk_1';
-        try { window.ToushirStore.saveToLocalStorage(); } catch(e){}
-      }
-
-      const loginOverlay = document.getElementById('login-overlay');
-      const appLayout = document.getElementById('app-layout');
-      if (loginOverlay) loginOverlay.style.display = 'none';
-      if (appLayout) appLayout.style.display = 'flex';
-
-      if (window.ToushirApp && typeof window.ToushirApp.showAppLayout === 'function') {
-        window.ToushirApp.showAppLayout();
+      if (mode === 'email') {
+        if (tabEmail) tabEmail.classList.add('active');
+        if (tabPin) tabPin.classList.remove('active');
+        if (emailFields) emailFields.style.display = 'block';
+        if (pinFields) pinFields.style.display = 'none';
+        if (emailActions) emailActions.style.display = 'flex';
+        if (btnLogin) btnLogin.innerHTML = '🚀 تسجيل الدخول بالبريد الإلكتروني';
+        setTimeout(() => {
+          const inp = document.getElementById('login-email-input');
+          if (inp) inp.focus();
+        }, 100);
+      } else {
+        if (tabPin) tabPin.classList.add('active');
+        if (tabEmail) tabEmail.classList.remove('active');
+        if (emailFields) emailFields.style.display = 'none';
+        if (pinFields) pinFields.style.display = 'block';
+        if (emailActions) emailActions.style.display = 'none';
+        if (btnLogin) btnLogin.innerHTML = '🚀 تسجيل الدخول السريع (PIN)';
+        setTimeout(() => {
+          const inp = document.getElementById('login-username-input');
+          if (inp) inp.focus();
+        }, 100);
       }
     };
-    window.ToushirApp.handleLoginSubmit = window.handleToushirLoginSubmit;
+
+    window.handleCreateEmailAccount = function() {
+      if (window.ToushirApp && typeof window.ToushirApp.handleCreateEmailAccount === 'function') {
+        return window.ToushirApp.handleCreateEmailAccount();
+      }
+    };
+
+    window.handleToushirLoginSubmit = function () {
+      if (window.ToushirApp && typeof window.ToushirApp.handleLoginSubmit === 'function') {
+        return window.ToushirApp.handleLoginSubmit();
+      }
+    };
   </script>
 
   <div id="login-overlay" class="login-screen-wrapper" style="display: flex;">
@@ -88,29 +96,67 @@
       <div class="login-header">
         <div class="login-logo">📊</div>
         <h2 class="login-title">توشير ERP</h2>
-        <p class="login-subtitle">نظام نقطة البيع وإدارة المخزون والموردين</p>
+        <p class="login-subtitle">نظام إدارة المخزون ونقطة البيع والموردين</p>
+      </div>
+
+      <!-- Auth Method Selector Tabs -->
+      <div class="login-tabs" id="login-auth-tabs">
+        <button type="button" class="login-tab-btn active" id="tab-login-email" onclick="window.switchLoginMode('email')">
+          ✉️ بالبريد الإلكتروني
+        </button>
+        <button type="button" class="login-tab-btn" id="tab-login-pin" onclick="window.switchLoginMode('pin')">
+          🔑 رمز PIN السريع
+        </button>
       </div>
 
       <form id="form-login-auth" onsubmit="event.preventDefault(); window.handleToushirLoginSubmit();">
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label class="login-label">👤 اسم المستخدم:</label>
-          <input type="text" id="login-username-input" class="form-control login-input"
-            placeholder="أدخل اسم المستخدم" autocomplete="off" required>
+        <!-- Email & Password Inputs -->
+        <div id="login-email-fields">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="login-label">✉️ البريد الإلكتروني:</label>
+            <input type="email" id="login-email-input" class="form-control login-input"
+              placeholder="example@gmail.com" autocomplete="email" dir="ltr" style="text-align: left; font-family: inherit;">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="login-label">🔒 كلمة المرور:</label>
+            <input type="password" id="login-password-input" class="form-control login-input"
+              placeholder="•••••••• (6 خانات أو أكثر)" autocomplete="current-password" dir="ltr" style="text-align: left;">
+          </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label class="login-label">🔑 رمز الدخول (PIN):</label>
-          <input type="password" id="login-pin-input" class="form-control login-input"
-            placeholder="أدخل رمز PIN" maxlength="8" autocomplete="off" required>
+        <!-- Quick PIN & Username Inputs -->
+        <div id="login-pin-fields" style="display: none;">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="login-label">👤 اسم المستخدم:</label>
+            <input type="text" id="login-username-input" class="form-control login-input"
+              placeholder="أدخل اسم المستخدم (مثال: المدير)" autocomplete="off">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="login-label">🔑 رمز الدخول (PIN):</label>
+            <input type="password" id="login-pin-input" class="form-control login-input"
+              placeholder="أدخل رمز PIN" maxlength="8" autocomplete="off">
+          </div>
         </div>
 
         <div id="login-error-msg"
-          style="display:none; background:#fee2e2; color:#991b1b; border-radius:8px; padding:10px 14px; font-size:0.88rem; font-weight:700; margin-bottom:14px;">
+          style="display:none; background:#fee2e2; color:#991b1b; border-radius:8px; padding:10px 14px; font-size:0.88rem; font-weight:700; margin-bottom:14px; border: 1px solid #fca5a5;">
         </div>
 
         <button type="submit" class="btn btn-primary btn-block login-btn" id="btn-do-login">
-          🚀 تسجيل الدخول للنظام
+          🚀 تسجيل الدخول بالبريد الإلكتروني
         </button>
+
+        <div id="login-email-actions" style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+          <button type="button" id="btn-create-account" onclick="window.handleCreateEmailAccount()"
+            style="font-size: 0.83rem; color: var(--primary-teal); font-weight: 800; background: none; border: none; cursor: pointer; text-decoration: underline; font-family: inherit;">
+            ✨ إنشاء حساب جديد بهذا البريد
+          </button>
+          <span style="font-size: 0.76rem; color: var(--text-light); display: flex; align-items: center; gap: 4px;">
+            🔒 Firebase Auth
+          </span>
+        </div>
       </form>
     </div>
   </div>
@@ -256,6 +302,7 @@
             <span class="badge badge-active" id="header-worker-role" style="font-size: 0.65rem;">مدير النظام</span>
           </button>
 
+
           <!-- Direction Toggle -->
           <button class="icon-btn" id="btn-toggle-dir" title="تغيير الاتجاه (RTL/LTR)">
             <span style="font-size: 0.8rem; font-weight: 800;">RTL</span>
@@ -276,6 +323,8 @@
               <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </svg>
           </button>
+
+
 
           <!-- Notifications Bell & Flyout Dropdown -->
           <div class="notifications-wrapper" style="position: relative;">
@@ -971,9 +1020,19 @@
 
           <!-- Category and Inventory Flow Card -->
           <div class="card-panel" style="margin-bottom: 24px;">
-            <div class="panel-header" style="margin-bottom: 14px;">
-              <h3 class="panel-title" style="font-size: 1rem;">📦 توزيع المشتريات والمبيعات حسب الفئات والأصناف الأكثر حركة</h3>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">تحليل حجم المنتجات</span>
+            <div class="panel-header" style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <h3 class="panel-title" style="font-size: 1rem;">📦 توزيع المشتريات والمبيعات حسب الفئات والأصناف الأكثر حركة</h3>
+                <span style="font-size: 0.75rem; color: var(--text-muted);" id="category-chart-sublabel">مقارنة إجمالي المشتريات والمبيعات حسب فئات المنتجات</span>
+              </div>
+              <div class="btn-group" style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-secondary btn-sm active" id="btn-chart-view-categories" onclick="window.ReportsModule && window.ReportsModule.setCategoryChartView('categories')" style="font-size: 0.75rem; padding: 4px 10px; font-weight: 700;">
+                  🏷️ حسب الفئات
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-chart-view-items" onclick="window.ReportsModule && window.ReportsModule.setCategoryChartView('items')" style="font-size: 0.75rem; padding: 4px 10px; font-weight: 700;">
+                  🔥 حسب الأصناف
+                </button>
+              </div>
             </div>
             <div style="height: 250px; position: relative;">
               <canvas id="chart-category-purchases"></canvas>
@@ -2344,13 +2403,27 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- JavaScript Main Code -->
-  <script src="modules/pos.js?v=20260904_2"></script>
-  <script src="modules/suppliers.js?v=20260904_2"></script>
-  <script src="modules/purchases.js?v=20260904_2"></script>
-  <script src="modules/sales_whatsapp.js?v=20260904_2"></script>
-  <script src="modules/reports.js?v=20260904_2"></script>
-  <script src="modules/customers.js?v=20260904_2"></script>
-  <script src="app.js?v=20260904_2"></script>
+  <script src="real-database.js?v=20260920_real_db_v3"></script>
+  <script src="modules/pos.js?v=20260920_real_db_v3"></script>
+  <script src="modules/suppliers.js?v=20260920_real_db_v3"></script>
+  <script src="modules/purchases.js?v=20260920_real_db_v3"></script>
+  <script src="modules/sales_whatsapp.js?v=20260920_real_db_v3"></script>
+  <script src="modules/reports.js?v=20260920_real_db_v3"></script>
+  <script src="modules/customers.js?v=20260920_real_db_v3"></script>
+  <script src="app.js?v=20260920_real_db_v3"></script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Firebase Integration — must load AFTER app.js & all modules
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 1. Firebase config & SDK initialization -->
+  <script src="firebase-config.js?v=20260920_real_db_v2"></script>
+  <!-- 2. Data sync layer (Firestore ↔ ToushirStore) -->
+  <script src="firebase-sync.js?v=20260920_real_db_v2"></script>
+  <!-- 3. Firebase Auth — hooks into existing login flow -->
+  <script src="firebase-auth.js?v=20260920_real_db_v2"></script>
+  <!-- 4. Firebase Data Seeder (Disabled for production client handover) -->
+  <!-- <script src="firebase-seed.js?v=20260919_db_v5"></script> -->
+
 
 </body>
 

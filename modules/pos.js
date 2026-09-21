@@ -16,19 +16,8 @@ window.PosModule = (function () {
     return Number(amount || 0).toLocaleString('ar-DZ') + ' ' + currency;
   }
 
-  // Initial Product Catalog Seed Data with icons, categories, barcodes & scale weighted flags
-  const defaultCatalog = [
-    { id: 'p_1', name: 'زيت زيتون بكر 1L', category: 'زيوت', price: 950, icon: '🫒', categoryName: 'زيوت وعسل', barcode: '6130001001', isWeighted: false, unit: 'قارورة' },
-    { id: 'p_2', name: 'عسل سدر طبيعي 500g', category: 'زيوت', price: 3100, icon: '🍯', categoryName: 'زيوت وعسل', barcode: '6130001002', isWeighted: false, unit: 'علبة' },
-    { id: 'p_3', name: 'تمر دقلة نور (بالميزان)', category: 'تمور', price: 650, icon: '🌴', categoryName: 'تمور وحبوب', barcode: '200000300000', isWeighted: true, unit: 'كلغ' },
-    { id: 'p_4', name: 'فرينة ممتازة 5kg', category: 'تمور', price: 380, icon: '🌾', categoryName: 'تمور وحبوب', barcode: '6130001004', isWeighted: false, unit: 'كيس' },
-    { id: 'p_5', name: 'حليب طازج 1L', category: 'غذائية', price: 80, icon: '🥛', categoryName: 'مواد غذائية', barcode: '6130001005', isWeighted: false, unit: 'لتر' },
-    { id: 'p_6', name: 'جبن أبيض ممتازة 500g', category: 'غذائية', price: 420, icon: '🧀', categoryName: 'مواد غذائية', barcode: '6130001006', isWeighted: false, unit: 'علبة' },
-    { id: 'p_7', name: 'عصير برتقال طبيعي 1L', category: 'عصائر', price: 220, icon: '🧃', categoryName: 'عصائر ومشروبات', barcode: '6130001007', isWeighted: false, unit: 'قارورة' },
-    { id: 'p_8', name: 'مسحوق غسيل الملابس 2kg', category: 'منظفات', price: 680, icon: '🧼', categoryName: 'منظفات', barcode: '6130001008', isWeighted: false, unit: 'علبة' },
-    { id: 'p_9', name: 'زيتون أسود ممتازة (بالميزان)', category: 'غذائية', price: 480, icon: '🫒', categoryName: 'مواد غذائية', barcode: '200000900000', isWeighted: true, unit: 'كلغ' },
-    { id: 'p_10', name: 'قهوة عربي مطحونة (بالميزان)', category: 'غذائية', price: 1400, icon: '☕', categoryName: 'مواد غذائية', barcode: '200001000000', isWeighted: true, unit: 'كلغ' }
-  ];
+  // Initial Product Catalog (Starts clean from real database)
+  const defaultCatalog = [];
 
   // Camera Barcode Scanner Instance State
   let html5QrCode = null;

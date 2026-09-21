@@ -1,63 +1,155 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if user is authenticated admin
-    function isAdmin() {
-      return request.auth != null && (request.auth.token.role == 'admin' || request.auth.token.admin == true);
+
+    // =========================================================================
+    // Helper Functions
+    // =========================================================================
+
+    // Check if request comes from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
     }
-    
-    // Invoices collection (Sales)
+
+    // Check if the authenticated user has admin role
+    // Role is set via Firebase Custom Claims by Cloud Functions or Admin SDK
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Check if the authenticated user is an employee or admin
+    function isEmployee() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'employee' ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Prevent updates to immutable audit fields
+    function doesNotChangeAuditFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['_createdAt', 'createdAt']);
+    }
+
+    // =========================================================================
+    // Sales Invoices Collection
+    // =========================================================================
     match /invoices/{invoiceId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow create: if isEmployee();
+      allow update: if isEmployee() && doesNotChangeAuditFields();
       allow delete: if isAdmin();
     }
-    
-    // WhatsApp Delivery Logs collection (whatsappNotifications)
+
+    // =========================================================================
+    // Purchase Invoices Collection (top-level)
+    // =========================================================================
+    match /purchaseInvoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow create: if isEmployee();
+      allow update: if isEmployee();
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // WhatsApp Notifications Log
+    // Written only by Cloud Functions (server-side) — never by client
+    // =========================================================================
     match /whatsappNotifications/{logId} {
-      allow read: if request.auth != null;
-      allow create: if false; // Server-side Cloud Functions write only
+      allow read: if isAuthenticated();
+      allow create: if false;          // Cloud Functions only
       allow update, delete: if isAdmin();
     }
-    
-    // Suppliers collection & subcollections
+
+    // =========================================================================
+    // Suppliers Collection & Subcollections
+    // =========================================================================
     match /suppliers/{supplierId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow create: if isEmployee();
+      allow update: if isEmployee();
       allow delete: if isAdmin();
-      
-      // Purchase Invoices subcollection
+
+      // Purchase Invoices per supplier
       match /purchaseInvoices/{invoiceId} {
-        allow read: if request.auth != null;
-        allow create, update: if request.auth != null;
+        allow read: if isAuthenticated();
+        allow create, update: if isEmployee();
         allow delete: if isAdmin();
       }
-      
-      // Supplier Payments subcollection
+
+      // Payments per supplier
       match /payments/{paymentId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
+        allow read: if isAuthenticated();
+        allow create: if isEmployee();
         allow update, delete: if isAdmin();
       }
-      
-      // Supplier Financial Ledger subcollection
+
+      // Financial Ledger — system-managed only (no direct client writes)
       match /ledger/{entryId} {
-        allow read: if request.auth != null;
-        allow write: if false; // Server-side or system managed ledger only
+        allow read: if isAuthenticated();
+        allow write: if false;
       }
     }
-    
-    // Products Inventory collection
-    match /products/{productId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+
+    // =========================================================================
+    // Customers Collection
+    // =========================================================================
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create: if isEmployee();
+      allow update: if isEmployee() && doesNotChangeAuditFields();
+      allow delete: if isAdmin();
+
+      // Customer financial ledger — system-managed only
+      match /ledger/{entryId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
     }
-    
-    // Settings collection
+
+    // =========================================================================
+    // Products / Inventory Collection
+    // =========================================================================
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isEmployee();
+      allow update: if isEmployee();
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // Workers / Staff Collection
+    // Only admins can create or delete workers
+    // =========================================================================
+    match /workers/{workerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // Settings Collection
+    // Only admins can modify app-wide settings
+    // =========================================================================
     match /settings/{docId} {
-      allow read: if request.auth != null;
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // =========================================================================
+    // Audit Logs — append-only, never delete
+    // =========================================================================
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;   // Immutable audit trail
+    }
+
   }
 }
+

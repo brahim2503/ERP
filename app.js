@@ -43,76 +43,112 @@ window.ToushirStore = {
     return Number(amount || 0).toLocaleString('ar-DZ') + ' ' + currency;
   },
 
-  // Load from LocalStorage or seed initial realistic data
-  init() {
+  // Load from Real Database Server API or LocalStorage
+  async init() {
+    // 1. First priority: Load from real server database
+    try {
+      const res = await fetch('/api/data?t=' + Date.now());
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object' && (
+          (Array.isArray(data.products) && data.products.length > 0) ||
+          (Array.isArray(data.suppliers) && data.suppliers.length > 0) ||
+          (Array.isArray(data.purchaseInvoices) && data.purchaseInvoices.length > 0) ||
+          (Array.isArray(data.salesInvoices) && data.salesInvoices.length > 0)
+        )) {
+          this.applyLoadedData(data);
+          this.saveToLocalStorage(false);
+          console.log('[Store] ✅ Loaded real data from server database (/api/data)');
+          if (window.ToushirApp && typeof window.ToushirApp.renderAllViews === 'function') {
+            window.ToushirApp.renderAllViews();
+          }
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[Store] Real DB server fetch failed, checking local stores:', err.message);
+    }
+
+    // 2. Fallback: Load from LocalStorage if it has valid populated products
     const saved = localStorage.getItem('toushir_erp_store_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        this.suppliers = parsed.suppliers || [];
-        this.customers = parsed.customers || [];
-        this.customerLedgers = parsed.customerLedgers || {};
-        // Backfill items for seeded ledger entries if loaded from previous storage without items
-        if (this.customerLedgers['CUST-101']) {
-          const l1 = this.customerLedgers['CUST-101'].find(x => x.id === 'l_c1' || x.refId === 'INV-1001');
-          if (l1 && (!l1.items || l1.items.length === 0)) {
-            l1.items = [
-              { productName: 'زيت زيتون بكر 1L', quantity: 3, unitPrice: 950, total: 2850 },
-              { productName: 'عسل سدر طبيعي 500g', quantity: 1, unitPrice: 2150, total: 2150 }
-            ];
-            l1.amountPaid = l1.amountPaid !== undefined ? l1.amountPaid : 1500;
-            l1.remainingDebt = l1.remainingDebt !== undefined ? l1.remainingDebt : 3500;
-          }
-        }
-        if (this.customerLedgers['CUST-102']) {
-          const l3 = this.customerLedgers['CUST-102'].find(x => x.id === 'l_c3' || x.refId === 'INV-1002');
-          if (l3 && (!l3.items || l3.items.length === 0)) {
-            l3.items = [
-              { productName: 'فرينة ممتازة 5kg', quantity: 100, unitPrice: 500, total: 50000 }
-            ];
-            l3.amountPaid = l3.amountPaid !== undefined ? l3.amountPaid : 35000;
-            l3.remainingDebt = l3.remainingDebt !== undefined ? l3.remainingDebt : 15000;
-          }
-        }
-        this.purchaseInvoices = parsed.purchaseInvoices || [];
-        this.salesInvoices = parsed.salesInvoices || [];
-        this.products = parsed.products || [];
-        this.workers = parsed.workers || [];
-        this.ledgers = parsed.ledgers || {};
-        this.whatsappNotifications = parsed.whatsappNotifications || [];
-        this.readAlertIds = parsed.readAlertIds || [];
-        if (parsed.settings) this.settings = { ...this.settings, ...parsed.settings };
-        const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
-        this.workers = (parsed.workers || []).filter(w => !demoNames.includes(w.name));
-        if (this.workers.length === 0) {
-          this.seedWorkers();
-        } else {
-          this.workers.forEach(w => {
-            if (Array.isArray(w.permissions)) {
-              w.permissions = w.permissions.filter(p => p !== 'sales-whatsapp');
-            }
-            if (!w.permissions || !Array.isArray(w.permissions) || w.permissions.length === 0) {
-              if (w.role && w.role.includes('Admin')) {
-                w.permissions = ['dashboard', 'pos', 'customers', 'suppliers', 'purchases', 'reports', 'settings'];
-              } else if (w.role && w.role.includes('StoreKeeper')) {
-                w.permissions = ['pos', 'suppliers', 'purchases'];
-              } else {
-                w.permissions = ['pos', 'customers'];
-              }
-            }
-          });
+        if (parsed && typeof parsed === 'object' && (
+          (Array.isArray(parsed.products) && parsed.products.length > 0) ||
+          (Array.isArray(parsed.suppliers) && parsed.suppliers.length > 0)
+        )) {
+          this.applyLoadedData(parsed);
+          console.log('[Store] 💾 Loaded real data from LocalStorage store');
+          return true;
         }
       } catch (e) {
         console.error('Failed to parse stored ERP data', e);
-        this.seedInitialData();
       }
-    } else {
-      this.seedInitialData();
+    }
+
+    // 3. Fallback: Load from window.REAL_DATABASE (Guaranteed to NEVER be empty!)
+    if (window.REAL_DATABASE && typeof window.REAL_DATABASE === 'object') {
+      console.log('[Store] ⚡ Loaded authentic Algerian real database fallback (REAL_DATABASE)');
+      this.applyLoadedData(window.REAL_DATABASE);
+      this.saveToLocalStorage(true);
+      return true;
+    }
+
+    this.seedWorkers();
+    return false;
+  },
+
+  async restoreRealDatabase() {
+    try {
+      const res = await fetch('/api/restore-real');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          this.applyLoadedData(json.data);
+          this.saveToLocalStorage(false);
+          if (window.ToushirApp) {
+            window.ToushirApp.renderAllViews();
+            window.ToushirApp.showToast('✅ تم تأكيد واسترجاع قاعدة البيانات الحقيقية بنجاح!', 'success');
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (window.REAL_DATABASE) {
+      this.applyLoadedData(window.REAL_DATABASE);
+      this.saveToLocalStorage(true);
+      if (window.ToushirApp) {
+        window.ToushirApp.renderAllViews();
+        window.ToushirApp.showToast('✅ تم تحميل وتفعيل قاعدة البيانات الحقيقية بنجاح!', 'success');
+      }
     }
   },
 
-  saveToLocalStorage() {
-    localStorage.setItem('toushir_erp_store_v2', JSON.stringify({
+  applyLoadedData(parsed) {
+    this.suppliers = parsed.suppliers || [];
+    this.customers = parsed.customers || [];
+    this.customerLedgers = parsed.customerLedgers || {};
+    this.purchaseInvoices = parsed.purchaseInvoices || [];
+    this.salesInvoices = parsed.salesInvoices || [];
+    this.products = parsed.products || [];
+    this.workers = parsed.workers || [];
+    this.ledgers = parsed.ledgers || {};
+    this.whatsappNotifications = parsed.whatsappNotifications || [];
+    this.readAlertIds = parsed.readAlertIds || [];
+    if (parsed.settings) this.settings = { ...this.settings, ...parsed.settings };
+
+    // Filter out any leftover demo workers
+    const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
+    this.workers = (this.workers || []).filter(w => !demoNames.includes(w.name));
+    if (this.workers.length === 0) {
+      this.seedWorkers();
+    }
+  },
+
+  saveToLocalStorage(syncToServer = true) {
+    const payload = {
       suppliers: this.suppliers,
       customers: this.customers,
       customerLedgers: this.customerLedgers,
@@ -124,7 +160,20 @@ window.ToushirStore = {
       whatsappNotifications: this.whatsappNotifications,
       readAlertIds: this.readAlertIds,
       settings: this.settings
-    }));
+    };
+
+    localStorage.setItem('toushir_erp_store_v2', JSON.stringify(payload));
+
+    if (syncToServer) {
+      clearTimeout(this._serverSyncTimer);
+      this._serverSyncTimer = setTimeout(() => {
+        fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(err => console.warn('[Store] Auto-save to server DB failed:', err.message));
+      }, 500);
+    }
   },
 
   currentWorkerId: 'wrk_1',
@@ -135,8 +184,8 @@ window.ToushirStore = {
         id: 'wrk_1',
         name: 'المدير',
         role: 'مدير النظام (Admin)',
-        phone: '0600000000',
-        salary: 0,
+        phone: '0661000000',
+        salary: 85000,
         pin: '1234',
         status: 'Active',
         hireDate: new Date().toISOString().slice(0, 10),
@@ -146,268 +195,44 @@ window.ToushirStore = {
   },
 
   seedInitialData() {
+    if (window.REAL_DATABASE) {
+      this.applyLoadedData(window.REAL_DATABASE);
+    } else {
+      this.seedWorkers();
+      this.suppliers = [];
+      this.customers = [];
+      this.customerLedgers = {};
+      this.products = [];
+      this.purchaseInvoices = [];
+      this.salesInvoices = [];
+      this.ledgers = {};
+      this.whatsappNotifications = [];
+      this.readAlertIds = [];
+    }
+    this.saveToLocalStorage(true);
+  },
+
+  async resetDatabaseToZero() {
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+    } catch (_) {}
     this.seedWorkers();
-    this.suppliers = [
-      {
-        id: 'sup_2',
-        name: 'مطاحن البركة للحبوب والفرينة',
-        phone: '0661987654',
-        whatsapp: '+213661987654',
-        email: 'sales@albaraka-mills.dz',
-        address: 'شارع فلسطين',
-        state: 'سطيف',
-        city: 'العلمة',
-        commercialRegisterNo: '19/00-554123B',
-        taxId: '099876543210987',
-        status: 'Active',
-        totalPurchases: 1800000,
-        totalPaid: 850000,
-        currentDebt: 950000,
-        createdAt: '2026-05-15T11:30:00Z'
-      },
-      {
-        id: 'sup_1',
-        name: 'شركة الأمل للمواد الغذائية',
-        phone: '0550123456',
-        whatsapp: '+213550123456',
-        email: 'contact@alamel-food.dz',
-        address: 'المنطقة الصناعية',
-        state: 'الجزائر العاصمة',
-        city: 'باب الزوار',
-        commercialRegisterNo: '16/00-098231B',
-        taxId: '099812345678901',
-        status: 'Active',
-        totalPurchases: 660000,
-        totalPaid: 500000,
-        currentDebt: 160000,
-        createdAt: '2026-06-01T10:00:00Z'
-      },
-      {
-        id: 'sup_3',
-        name: 'مزارع الواحة للتمور والزيوت',
-        phone: '0770334455',
-        whatsapp: '+213770334455',
-        email: 'info@elwaha-oils.dz',
-        address: 'حي النخيل',
-        state: 'بسكرة',
-        city: 'طولقة',
-        commercialRegisterNo: '07/00-881234B',
-        taxId: '099855443322110',
-        status: 'Active',
-        totalPurchases: 420000,
-        totalPaid: 360000,
-        currentDebt: 60000,
-        createdAt: '2026-07-02T09:15:00Z'
-      }
-    ];
-
-    this.customers = [
-      {
-        id: 'CUST-101',
-        name: 'يوسف العربي',
-        phone: '0551234567',
-        address: 'البليدة',
-        status: 'Active',
-        totalPurchases: 12000,
-        debt: 3500
-      },
-      {
-        id: 'CUST-102',
-        name: 'مقهى السعادة',
-        phone: '0778899001',
-        address: 'وهران',
-        status: 'Active',
-        totalPurchases: 50000,
-        debt: 15000
-      }
-    ];
-
-    this.customerLedgers = {
-      'CUST-101': [
-        {
-          id: 'l_c1',
-          type: 'Purchase',
-          amount: 5000,
-          amountPaid: 1500,
-          remainingDebt: 3500,
-          refId: 'INV-1001',
-          date: '2026-08-01T10:00:00Z',
-          items: [
-            { productName: 'زيت زيتون بكر 1L', quantity: 3, unitPrice: 950, total: 2850 },
-            { productName: 'عسل سدر طبيعي 500g', quantity: 1, unitPrice: 2150, total: 2150 }
-          ],
-          note: 'فاتورة مشتريات مواد غذائية'
-        },
-        {
-          id: 'l_c2',
-          type: 'Payment',
-          amount: 1500,
-          refId: 'REC-2026-01',
-          date: '2026-08-05T12:00:00Z',
-          method: 'نقداً',
-          note: 'تسديد دفعة نقدية في المحل'
-        }
-      ],
-      'CUST-102': [
-        {
-          id: 'l_c3',
-          type: 'Purchase',
-          amount: 50000,
-          amountPaid: 35000,
-          remainingDebt: 15000,
-          refId: 'INV-1002',
-          date: '2026-08-02T10:00:00Z',
-          items: [
-            { productName: 'فرينة ممتازة 5kg', quantity: 100, unitPrice: 500, total: 50000 }
-          ],
-          note: 'فاتورة توريد فرينة لمقهى السعادة'
-        },
-        {
-          id: 'l_c4',
-          type: 'Payment',
-          amount: 35000,
-          refId: 'CCP-992144',
-          date: '2026-08-08T12:00:00Z',
-          method: 'تحويل بنكي / CCP',
-          note: 'تسديد جزئي عبر بريدي موب / CCP'
-        }
-      ]
-    };
-
-    const getRelDate = (offsetDays) => {
-      const d = new Date();
-      d.setDate(d.getDate() + offsetDays);
-      return d.toISOString().slice(0, 10);
-    };
-
-    this.products = [
-      { id: 'p_1', name: 'زيت زيتون بكر 1L', stockQuantity: 120, unitPrice: 950, barcode: '6131234567890', expiryDate: getRelDate(180) },
-      { id: 'p_2', name: 'عسل سدر طبيعي 500g', stockQuantity: 10, unitPrice: 3100, barcode: '6139876543210', expiryDate: getRelDate(14) },
-      { id: 'p_3', name: 'تمر دقلة نور 1kg', stockQuantity: 9, unitPrice: 650, barcode: '6131122334455', expiryDate: getRelDate(-4) },
-      { id: 'p_4', name: 'فرينة ممتازة 5kg', stockQuantity: 11, unitPrice: 380, barcode: '6135566778899', expiryDate: getRelDate(16) },
-      { id: 'p_5', name: 'حليب طازج 1L', stockQuantity: 5, unitPrice: 80, barcode: '6137788990011', expiryDate: getRelDate(15) },
-      { id: 'p_6', name: 'جبن أبيض ممتازة 500g', stockQuantity: 0, unitPrice: 420, barcode: '6134455667788', expiryDate: null }
-    ];
-
-    this.purchaseInvoices = [
-      {
-        id: 'pur_528',
-        invoiceNumber: 'PUR-2026-528',
-        supplierId: 'sup_1',
-        supplierName: 'شركة الأمل للمواد الغذائية',
-        status: 'Confirmed',
-        totalAmount: 5000,
-        amountPaid: 0,
-        createdAt: '2026-08-24T10:00:00Z',
-        items: [{ productName: 'زيت زيتون بكر 1L', quantity: 5, unitCost: 1000, unitPrice: 1250 }]
-      },
-      {
-        id: 'pur_902',
-        invoiceNumber: 'PUR-2026-902',
-        supplierId: 'sup_1',
-        supplierName: 'شركة الأمل للمواد الغذائية',
-        status: 'Confirmed',
-        totalAmount: 5000,
-        amountPaid: 0,
-        createdAt: '2026-08-24T09:00:00Z',
-        items: [{ productName: 'عسل سدر طبيعي 500g', quantity: 2, unitCost: 2500, unitPrice: 3100 }]
-      },
-      {
-        id: 'pur_001',
-        invoiceNumber: 'PUR-2026-001',
-        supplierId: 'sup_1',
-        supplierName: 'شركة الأمل للمواد الغذائية',
-        status: 'Confirmed',
-        totalAmount: 650000,
-        amountPaid: 500000,
-        createdAt: '2026-07-10T10:00:00Z',
-        items: [{ productName: 'زيت زيتون بكر 1L', quantity: 500, unitCost: 800, unitPrice: 950 }]
-      },
-      {
-        id: 'pur_002',
-        invoiceNumber: 'PUR-2026-002',
-        supplierId: 'sup_2',
-        supplierName: 'مطاحن البركة للحبوب والفرينة',
-        status: 'Confirmed',
-        totalAmount: 1800000,
-        amountPaid: 850000,
-        createdAt: '2026-07-22T14:30:00Z',
-        items: [{ productName: 'فرينة ممتازة 5kg', quantity: 5000, unitCost: 360, unitPrice: 450 }]
-      }
-    ];
-
-    this.ledgers = {
-      'sup_1': [
-        { id: 'l_1', type: 'purchase', reference: 'PUR-2026-001', amount: 650000, paid: 500000, runningBalance: 150000, date: '2026-07-10T10:00:00Z' }
-      ],
-      'sup_2': [
-        { id: 'l_2', type: 'purchase', reference: 'PUR-2026-002', amount: 1800000, paid: 850000, runningBalance: 950000, date: '2026-07-22T14:30:00Z' }
-      ],
-      'sup_3': [
-        { id: 'l_3', type: 'purchase', reference: 'PUR-2026-003', amount: 420000, paid: 360000, runningBalance: 60000, date: '2026-07-28T09:00:00Z' }
-      ]
-    };
-
-    this.salesInvoices = [
-      {
-        id: 'inv_8941',
-        invoiceNumber: 'POS-2026-8941',
-        customerName: 'يوسف العربي',
-        totalAmount: 12000,
-        totalCost: 9200,
-        profitAmount: 2800,
-        profitMargin: 23.3,
-        amountPaid: 8500,
-        remainingAmount: 3500,
-        paymentType: 'credit',
-        items: [{ productName: 'زيت زيتون بكر 1L', quantity: 10, unitPrice: 950, unitCost: 750 }],
-        createdAt: '2026-08-28T16:20:00Z'
-      },
-      {
-        id: 'inv_8942',
-        invoiceNumber: 'POS-2026-8942',
-        customerName: 'عميل عابر (نقداً)',
-        totalAmount: 4500,
-        totalCost: 3400,
-        profitAmount: 1100,
-        profitMargin: 24.4,
-        amountPaid: 4500,
-        remainingAmount: 0,
-        paymentType: 'cash',
-        items: [{ productName: 'عسل سدر طبيعي 500g', quantity: 1, unitPrice: 3100, unitCost: 2400 }],
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'inv_8943',
-        invoiceNumber: 'POS-2026-8943',
-        customerName: 'مقهى السعادة',
-        totalAmount: 50000,
-        totalCost: 38000,
-        profitAmount: 12000,
-        profitMargin: 24.0,
-        amountPaid: 35000,
-        remainingAmount: 15000,
-        paymentType: 'credit',
-        items: [{ productName: 'فرينة ممتازة 5kg', quantity: 100, unitPrice: 500, unitCost: 380 }],
-        createdAt: new Date().toISOString()
-      }
-    ];
-
-    this.whatsappNotifications = [
-      {
-        id: 'wa_1001',
-        invoiceId: 'inv_882',
-        invoiceNumber: 'INV-2026-8941',
-        customerPhone: '+213550123456',
-        status: 'sent',
-        provider: 'Meta Cloud API',
-        errorMessage: null,
-        messagePreview: `السلام عليكم محمد العماري،\n\nتم تسجيل عملية شراء بالدين بنجاح.\n🧾 رقم الفاتورة: INV-2026-8941\n...\n📌 المتبقي: 3500 دج`,
-        timestamp: '2026-08-10T18:45:00Z'
-      }
-    ];
-
-    this.saveToLocalStorage();
+    this.suppliers = [];
+    this.customers = [];
+    this.customerLedgers = {};
+    this.products = [];
+    this.purchaseInvoices = [];
+    this.salesInvoices = [];
+    this.ledgers = {};
+    this.whatsappNotifications = [];
+    this.readAlertIds = [];
+    localStorage.removeItem('toushir_erp_store_v2');
+    localStorage.setItem('toushir_db_version', 'v5_real_database_clean');
+    this.saveToLocalStorage(false);
+    if (window.ToushirApp) {
+      window.ToushirApp.showToast('✅ تم تصفير وتهيئة قاعدة البيانات بنجاح ليصبح كل شيء 0!', 'success');
+      window.ToushirApp.showAppLayout();
+    }
   },
 
   // 🔔 Compute Realtime Smart Alerts (Stock Levels, Expiry Dates & Supplier Dues)
@@ -533,15 +358,14 @@ window.ToushirStore = {
 
 // 2. Application UI Controller
 window.ToushirApp = {
-  init() {
-    window.ToushirStore.init();
+  async init() {
+    await window.ToushirStore.init();
 
-    // Force reseed workers if stored data is corrupted or outdated
+    // Ensure valid workers
     const workers = window.ToushirStore.workers || [];
     const hasValidWorkers = workers.length > 0 && workers.some(w => w.pin && w.id);
     if (!hasValidWorkers) {
       window.ToushirStore.seedWorkers();
-      window.ToushirStore.saveToLocalStorage();
     }
 
     this.setupEventListeners();
@@ -562,26 +386,154 @@ window.ToushirApp = {
     if (loginOverlay) loginOverlay.style.display = 'flex';
     if (appLayout) appLayout.style.display = 'none';
 
+    const emailInput = document.getElementById('login-email-input');
+    const passwordInput = document.getElementById('login-password-input');
     const userInput = document.getElementById('login-username-input');
     const pinInp = document.getElementById('login-pin-input');
+    const errorBox = document.getElementById('login-error-msg');
 
-    if (userInput) {
-      userInput.value = '';
-      setTimeout(() => userInput.focus(), 200);
+    if (errorBox) {
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
     }
-    if (pinInp) {
-      pinInp.value = '';
+
+    if (emailInput) {
+      emailInput.value = '';
+      setTimeout(() => emailInput.focus(), 200);
     }
+    if (passwordInput) passwordInput.value = '';
+    if (userInput) userInput.value = '';
+    if (pinInp) pinInp.value = '';
   },
 
-  handleLoginSubmit() {
+  async handleLoginSubmit() {
+    const emailInput = document.getElementById('login-email-input');
+    const passwordInput = document.getElementById('login-password-input');
     const userInput = document.getElementById('login-username-input');
     const pinInp = document.getElementById('login-pin-input');
+    const errorBox = document.getElementById('login-error-msg');
 
-    if (!userInput || !pinInp) return;
+    if (errorBox) {
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
 
-    const rawUsername = (userInput.value || '').trim();
-    const enteredPin = (pinInp.value || '').trim();
+    const currentMode = window.currentLoginMode || (emailInput && emailInput.offsetParent !== null ? 'email' : 'pin');
+    const emailVal = emailInput ? (emailInput.value || '').trim() : '';
+    const passwordVal = passwordInput ? (passwordInput.value || '') : '';
+    const rawUsername = userInput ? (userInput.value || '').trim() : '';
+    const enteredPin = pinInp ? (pinInp.value || '').trim() : '';
+
+    // Smart detect: if user entered email in any field
+    const isEmail = currentMode === 'email' || emailVal.length > 0 || rawUsername.includes('@');
+
+    if (isEmail) {
+      const email = emailVal || rawUsername;
+      const password = passwordVal || enteredPin;
+
+      if (!email) {
+        if (errorBox) {
+          errorBox.textContent = '⚠️ يرجى إدخال البريد الإلكتروني.';
+          errorBox.style.display = 'block';
+        }
+        if (emailInput) emailInput.focus();
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        if (errorBox) {
+          errorBox.textContent = '⚠️ صيغة البريد الإلكتروني غير صالحة. يرجى التأكد من كتابته بشكل صحيح.';
+          errorBox.style.display = 'block';
+        }
+        if (emailInput) emailInput.focus();
+        return;
+      }
+
+      if (!password || password.length < 6) {
+        if (errorBox) {
+          errorBox.textContent = '⚠️ كلمة المرور يجب أن تتكون من 6 خانات أو أكثر.';
+          errorBox.style.display = 'block';
+        }
+        if (passwordInput) passwordInput.focus();
+        return;
+      }
+
+      const loginBtn = document.getElementById('btn-do-login');
+      const origText = loginBtn ? loginBtn.innerHTML : '';
+      if (loginBtn) {
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '⏳ جاري تسجيل الدخول بالبريد...';
+      }
+
+      try {
+        let firebaseUser = null;
+        if (window.ToushirAuth && typeof window.ToushirAuth.signIn === 'function') {
+          firebaseUser = await window.ToushirAuth.signIn(email, password, true);
+        }
+
+        // Establish worker record in store
+        let workers = window.ToushirStore.workers || [];
+        let worker = workers.find(w => (w.email && w.email.toLowerCase() === email.toLowerCase()) || w.id === 'wrk_1');
+        if (!worker) {
+          worker = {
+            id: 'wrk_' + Date.now(),
+            name: (firebaseUser && firebaseUser.displayName) ? firebaseUser.displayName : email.split('@')[0],
+            email: email,
+            role: 'مدير النظام (Admin)',
+            status: 'Active',
+            permissions: ['dashboard', 'pos', 'customers', 'suppliers', 'purchases', 'reports', 'settings']
+          };
+          workers.unshift(worker);
+          window.ToushirStore.workers = workers;
+        } else {
+          worker.email = email;
+          if (firebaseUser && firebaseUser.displayName) worker.name = firebaseUser.displayName;
+        }
+
+        window.ToushirStore.currentWorkerId = worker.id;
+        window.ToushirStore.saveToLocalStorage();
+        sessionStorage.setItem('toushir_logged_in', 'true');
+
+        const headerWorker = document.getElementById('header-worker-name');
+        if (headerWorker) headerWorker.textContent = worker.name || email.split('@')[0];
+
+        this.showToast(`👋 أهلاً بك! تم تسجيل الدخول بنجاح: ${email}`, 'success');
+        this.showAppLayout();
+      } catch (err) {
+        console.error('[Auth Error]', err);
+        let errorMsg = '⚠️ تعذر تسجيل الدخول بالبريد الإلكتروني.';
+        if (window.ToushirAuth && typeof window.ToushirAuth.getErrorMessage === 'function') {
+          errorMsg = window.ToushirAuth.getErrorMessage(err.code || err.message);
+        } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+          errorMsg = '⚠️ كلمة المرور أو البريد الإلكتروني غير صحيح!';
+        } else if (err.message) {
+          errorMsg = `⚠️ ${err.message}`;
+        }
+
+        if (errorBox) {
+          errorBox.textContent = errorMsg;
+          errorBox.style.display = 'block';
+        }
+        this.showToast(errorMsg, 'error');
+      } finally {
+        if (loginBtn) {
+          loginBtn.disabled = false;
+          loginBtn.innerHTML = origText;
+        }
+      }
+      return;
+    }
+
+    // PIN Mode
+    if (!rawUsername) {
+      if (errorBox) {
+        errorBox.textContent = '⚠️ يرجى إدخال اسم المستخدم.';
+        errorBox.style.display = 'block';
+      }
+      if (userInput) userInput.focus();
+      return;
+    }
 
     const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
     let workers = (window.ToushirStore.workers || []).filter(w => !demoNames.includes(w.name));
@@ -600,7 +552,6 @@ window.ToushirApp = {
       ];
     }
 
-    // Helper to normalize text
     const norm = (str) => (str || '')
       .replace(/[\u0640\u064B-\u065F]/g, '')
       .replace(/\s+/g, ' ')
@@ -609,32 +560,118 @@ window.ToushirApp = {
 
     const cleanInput = norm(rawUsername);
 
-    // Find matching worker or default to first worker (Admin)
     let worker = workers.find(w => norm(w.name) === cleanInput) ||
       workers.find(w => norm(w.name).includes(cleanInput)) ||
       workers.find(w => cleanInput.includes(norm(w.name))) ||
-      workers.find(w => norm(w.name).split(' ')[0] === cleanInput.split(' ')[0]);
+      workers.find(w => norm(w.name).split(' ')[0] === cleanInput.split(' ')[0]) ||
+      workers[0];
 
-    // Fallback if no worker matched or typed name is general
-    if (!worker) {
-      worker = workers[0];
-    }
-
-    // Verify PIN if set
-    if (worker.pin && enteredPin && enteredPin !== worker.pin) {
+    if (worker && worker.pin && enteredPin && enteredPin !== worker.pin) {
+      if (errorBox) {
+        errorBox.textContent = '⚠️ رمز PIN غير صحيح! يرجى إعادة المحاولة.';
+        errorBox.style.display = 'block';
+      }
       this.showToast('رمز PIN غير صحيح! يرجى التأكد من الرمز وإعادة المحاولة', 'error');
-      pinInp.value = '';
-      pinInp.focus();
+      if (pinInp) {
+        pinInp.value = '';
+        pinInp.focus();
+      }
       return;
     }
 
-    // Login Success
     window.ToushirStore.currentWorkerId = worker.id;
     window.ToushirStore.saveToLocalStorage();
     sessionStorage.setItem('toushir_logged_in', 'true');
 
+    // Also trigger Firebase sign-in in background for workers
+    if (window.ToushirAuth && typeof window.ToushirAuth.signIn === 'function') {
+      window.ToushirAuth.signIn(worker.name, worker.pin || '1234').catch(e => console.warn('[Auth BG]', e));
+    }
+
     this.showToast(`👋 تم تسجيل الدخول بنجاح كـ: ${worker.name}`, 'success');
     this.showAppLayout();
+  },
+
+  async handleCreateEmailAccount() {
+    const emailInput = document.getElementById('login-email-input');
+    const passwordInput = document.getElementById('login-password-input');
+    const errorBox = document.getElementById('login-error-msg');
+
+    if (errorBox) {
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
+
+    const email = emailInput ? (emailInput.value || '').trim() : '';
+    const password = passwordInput ? (passwordInput.value || '') : '';
+
+    if (!email) {
+      if (errorBox) {
+        errorBox.textContent = '⚠️ يرجى إدخال البريد الإلكتروني الذي تريد التسجيل به.';
+        errorBox.style.display = 'block';
+      }
+      if (emailInput) emailInput.focus();
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      if (errorBox) {
+        errorBox.textContent = '⚠️ صيغة البريد الإلكتروني غير صالحة.';
+        errorBox.style.display = 'block';
+      }
+      if (emailInput) emailInput.focus();
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      if (errorBox) {
+        errorBox.textContent = '⚠️ كلمة المرور يجب أن تتكون من 6 خانات أو أكثر لإنشاء الحساب.';
+        errorBox.style.display = 'block';
+      }
+      if (passwordInput) passwordInput.focus();
+      return;
+    }
+
+    const loginBtn = document.getElementById('btn-do-login');
+    const origText = loginBtn ? loginBtn.innerHTML : '';
+    if (loginBtn) {
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '⏳ جاري إنشاء الحساب...';
+    }
+
+    try {
+      if (window.ToushirAuth && typeof window.ToushirAuth.signUp === 'function') {
+        await window.ToushirAuth.signUp(email, password, email.split('@')[0]);
+      } else if (window.ToushirAuth && typeof window.ToushirAuth.signIn === 'function') {
+        await window.ToushirAuth.signIn(email, password, true);
+      }
+
+      this.showToast(`🎉 تم إنشاء الحساب بنجاح لـ: ${email}`, 'success');
+      // Login directly
+      await this.handleLoginSubmit();
+    } catch (err) {
+      console.error('[SignUp Error]', err);
+      let errorMsg = '⚠️ تعذر إنشاء الحساب.';
+      if (window.ToushirAuth && typeof window.ToushirAuth.getErrorMessage === 'function') {
+        errorMsg = window.ToushirAuth.getErrorMessage(err.code || err.message);
+      } else if (err.code === 'auth/email-already-in-use') {
+        errorMsg = '⚠️ هذا البريد مسجل مسبقاً! اضغط على زر تسجيل الدخول.';
+      } else if (err.message) {
+        errorMsg = `⚠️ ${err.message}`;
+      }
+
+      if (errorBox) {
+        errorBox.textContent = errorMsg;
+        errorBox.style.display = 'block';
+      }
+      this.showToast(errorMsg, 'error');
+    } finally {
+      if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = origText;
+      }
+    }
   },
 
   logoutUser() {
@@ -643,26 +680,52 @@ window.ToushirApp = {
     this.showLoginScreen();
   },
 
+  renderAllViews() {
+    this.refreshDashboard();
+
+    // Render Initial Views
+    if (window.PosModule && typeof window.PosModule.init === 'function') {
+      window.PosModule.init();
+    } else if (window.PosModule && typeof window.PosModule.renderProductsGrid === 'function') {
+      window.PosModule.renderProductsGrid();
+    }
+
+    if (window.SupplierModule && typeof window.SupplierModule.renderSuppliersTable === 'function') {
+      window.SupplierModule.renderSuppliersTable(window.ToushirStore.suppliers || []);
+    }
+
+    if (window.CustomersModule && typeof window.CustomersModule.init === 'function') {
+      window.CustomersModule.init();
+    }
+
+    if (window.PurchasesModule && typeof window.PurchasesModule.renderPurchasesTable === 'function') {
+      window.PurchasesModule.renderPurchasesTable(window.ToushirStore.purchaseInvoices || []);
+    }
+
+    if (window.SalesWhatsAppModule && typeof window.SalesWhatsAppModule.renderWhatsAppLogsTable === 'function') {
+      window.SalesWhatsAppModule.renderWhatsAppLogsTable();
+    }
+
+    if (window.ReportsModule) {
+      if (typeof window.ReportsModule.initReportsView === 'function') window.ReportsModule.initReportsView();
+      if (typeof window.ReportsModule.initCharts === 'function') window.ReportsModule.initCharts();
+    }
+
+    if (typeof this.renderInventoryTable === 'function') {
+      this.renderInventoryTable();
+    }
+
+    this.renderWorkersTable();
+    this.applyWorkerPermissions();
+  },
+
   showAppLayout() {
     const loginOverlay = document.getElementById('login-overlay');
     const appLayout = document.getElementById('app-layout');
     if (loginOverlay) loginOverlay.style.display = 'none';
     if (appLayout) appLayout.style.display = 'flex';
 
-    this.refreshDashboard();
-
-    // Render Initial Views
-    if (window.PosModule) window.PosModule.init();
-    window.SupplierModule.renderSuppliersTable(window.ToushirStore.suppliers);
-    if (window.CustomersModule) window.CustomersModule.init();
-    window.PurchasesModule.renderPurchasesTable(window.ToushirStore.purchaseInvoices);
-    window.SalesWhatsAppModule.renderWhatsAppLogsTable();
-    if (window.ReportsModule) {
-      if (window.ReportsModule.initReportsView) window.ReportsModule.initReportsView();
-      if (window.ReportsModule.initCharts) window.ReportsModule.initCharts();
-    }
-    this.renderWorkersTable();
-    this.applyWorkerPermissions();
+    this.renderAllViews();
   },
 
   setupEventListeners() {

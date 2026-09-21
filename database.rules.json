@@ -1,0 +1,36 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "store": {
+      // Any authenticated user can read
+      ".read": "auth != null",
+
+      // Only admins can write top-level store
+      ".write": "auth != null && auth.token.role === 'admin'",
+
+      "products": {
+        // All authenticated users can read/write products
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+
+      "settings": {
+        // All authenticated users can read settings
+        ".read": "auth != null",
+        // Only admins can change settings
+        ".write": "auth != null && auth.token.role === 'admin'"
+      }
+    },
+
+    // Real-time presence / online status
+    "presence": {
+      "$uid": {
+        // Each user can only write their own presence
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}

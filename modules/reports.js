@@ -20,6 +20,7 @@ window.ReportsModule = (function() {
   let currentTabType = 'all';
   let currentSearchQuery = '';
   let isEventsInitialized = false;
+  let categoryChartViewMode = 'categories'; // 'categories' | 'items'
 
   function formatMoney(amount) {
     if (window.ToushirStore && window.ToushirStore.formatCurrency) {
@@ -419,7 +420,8 @@ window.ReportsModule = (function() {
           labels.push(dayLabel);
 
           let dSales = 0, dCashIn = 0, dPurchases = 0;
-          periodEntries.forEach(e => {
+          const all = getAllLedgerTransactions();
+          all.forEach(e => {
             const ed = new Date(e.date);
             if (ed.toDateString() === d.toDateString()) {
               if (e.typeCategory === 'sales') dSales += e.amount;
@@ -431,6 +433,35 @@ window.ReportsModule = (function() {
           cashInData.push(dCashIn);
           purchasesData.push(dPurchases);
         }
+      } else if (currentFilter === 'month') {
+        // Breakdown by weekly intervals in current month
+        const currentMonthName = monthNames[now.getMonth()];
+        const intervals = [
+          { label: `1 - 7 ${currentMonthName}`, startDay: 1, endDay: 7 },
+          { label: `8 - 14 ${currentMonthName}`, startDay: 8, endDay: 14 },
+          { label: `15 - 21 ${currentMonthName}`, startDay: 15, endDay: 21 },
+          { label: `22 - 30 ${currentMonthName}`, startDay: 22, endDay: 31 }
+        ];
+
+        intervals.forEach(inv => {
+          labels.push(inv.label);
+          let wSales = 0, wCashIn = 0, wPurchases = 0;
+          const all = getAllLedgerTransactions();
+          all.forEach(e => {
+            const ed = new Date(e.date);
+            if (ed.getFullYear() === now.getFullYear() && ed.getMonth() === now.getMonth()) {
+              const day = ed.getDate();
+              if (day >= inv.startDay && day <= inv.endDay) {
+                if (e.typeCategory === 'sales') wSales += e.amount;
+                wCashIn += e.inflow;
+                if (e.typeCategory === 'purchases') wPurchases += e.amount;
+              }
+            }
+          });
+          salesData.push(wSales);
+          cashInData.push(wCashIn);
+          purchasesData.push(wPurchases);
+        });
       } else {
         // Monthly breakdown (last 6 months)
         for (let i = 5; i >= 0; i--) {
@@ -448,9 +479,9 @@ window.ReportsModule = (function() {
             }
           });
 
-          salesData.push(mSales || (180000 + (5 - i) * 65000));
-          cashInData.push(mCashIn || (150000 + (5 - i) * 60000));
-          purchasesData.push(mPurchases || (120000 + (5 - i) * 50000));
+          salesData.push(mSales);
+          cashInData.push(mCashIn);
+          purchasesData.push(mPurchases);
         }
       }
 
@@ -541,38 +572,202 @@ window.ReportsModule = (function() {
     // Render interactive list of indebted suppliers below the chart
     renderIndebtedSuppliersList();
 
-    // 3. Category & Top Items Distribution
+    // 3. Category & Top Items Distribution (توزيع المشتريات والمبيعات حسب الفئات والأصناف الأكثر حركة)
+    renderCategoryPurchasesChart();
+  }
+
+  function setCategoryChartView(mode) {
+    categoryChartViewMode = mode || 'categories';
+    const btnCat = document.getElementById('btn-chart-view-categories');
+    const btnItems = document.getElementById('btn-chart-view-items');
+    const sublabel = document.getElementById('category-chart-sublabel');
+
+    if (btnCat && btnItems) {
+      if (categoryChartViewMode === 'categories') {
+        btnCat.classList.add('active');
+        btnItems.classList.remove('active');
+        if (sublabel) sublabel.textContent = 'مقارنة إجمالي المشتريات والمبيعات حسب فئات المنتجات';
+      } else {
+        btnItems.classList.add('active');
+        btnCat.classList.remove('active');
+        if (sublabel) sublabel.textContent = 'مقارنة الأصناف الأكثر حركة في المبيعات والمشتريات';
+      }
+    }
+    renderCategoryPurchasesChart();
+  }
+
+  function renderCategoryPurchasesChart() {
     const ctxCat = document.getElementById('chart-category-purchases');
-    if (ctxCat) {
-      if (categoryChart) categoryChart.destroy();
+    if (!ctxCat) return;
+    if (categoryChart) categoryChart.destroy();
 
-      const products = window.ToushirStore ? (window.ToushirStore.products || []) : [];
-      const prodLabels = products.slice(0, 6).map(p => p.name);
-      const prodValues = products.slice(0, 6).map(p => (p.unitPrice * (p.stockQuantity || 1)));
+    const store = window.ToushirStore || {};
+    const salesInvoices = store.salesInvoices || [];
+    const purchaseInvoices = store.purchaseInvoices || [];
+    const products = store.products || [];
 
-      categoryChart = new Chart(ctxCat, {
-        type: 'bar',
-        data: {
-          labels: prodLabels.length > 0 ? prodLabels : ['زيت زيتون 1L', 'عسل سدر 500g', 'تمر دقلة نور', 'فرينة 5kg'],
-          datasets: [{
-            label: 'قيمة المخزون والمبيعات (دج)',
-            data: prodValues.length > 0 ? prodValues : [114000, 31000, 5850, 4180],
-            backgroundColor: 'rgba(13, 148, 136, 0.8)',
-            borderRadius: 6
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { color: 'rgba(0,0,0,0.05)' } },
-            y: { grid: { display: false } }
-          }
+    // Map product names to categories
+    const prodToCat = {};
+    products.forEach(p => {
+      if (p.name) prodToCat[p.name] = p.category || 'عام';
+    });
+
+    let catLabels = [];
+    let catSalesValues = [];
+    let catPurValues = [];
+
+    if (categoryChartViewMode === 'categories') {
+      // Mode 1: Group by Real Categories
+      const catMap = {};
+
+      // Seed categories from products
+      products.forEach(p => {
+        const cat = p.category || 'عام';
+        if (!catMap[cat]) {
+          catMap[cat] = { salesAmount: 0, purchaseAmount: 0 };
         }
       });
+
+      // Accumulate sales by category
+      salesInvoices.forEach(inv => {
+        (inv.items || []).forEach(item => {
+          const cat = prodToCat[item.productName] || item.category || 'عام';
+          if (!catMap[cat]) catMap[cat] = { salesAmount: 0, purchaseAmount: 0 };
+          const price = Number(item.unitPrice || 0);
+          const qty = Number(item.quantity || 1);
+          catMap[cat].salesAmount += (price * qty);
+        });
+      });
+
+      // Accumulate purchases by category
+      purchaseInvoices.forEach(pur => {
+        (pur.items || []).forEach(item => {
+          const cat = prodToCat[item.productName] || item.category || 'عام';
+          if (!catMap[cat]) catMap[cat] = { salesAmount: 0, purchaseAmount: 0 };
+          const cost = Number(item.unitCost || item.unitPrice || 0);
+          const qty = Number(item.quantity || 1);
+          catMap[cat].purchaseAmount += (cost * qty);
+        });
+      });
+
+      const entries = Object.entries(catMap)
+        .map(([name, data]) => ({ name, ...data, total: data.salesAmount + data.purchaseAmount }))
+        .sort((a, b) => b.total - a.total);
+
+      if (entries.length > 0) {
+        catLabels = entries.map(e => e.name);
+        catSalesValues = entries.map(e => e.salesAmount);
+        catPurValues = entries.map(e => e.purchaseAmount);
+      } else {
+        catLabels = ['لا توجد فئات مسجلة بعد'];
+        catSalesValues = [0];
+        catPurValues = [0];
+      }
+    } else {
+      // Mode 2: Group by Top Moving Products
+      const movementMap = {};
+
+      salesInvoices.forEach(inv => {
+        (inv.items || []).forEach(item => {
+          const name = item.productName || 'صنف غير محدد';
+          if (!movementMap[name]) {
+            movementMap[name] = { salesAmount: 0, purchaseAmount: 0, salesQty: 0, purchaseQty: 0 };
+          }
+          const price = Number(item.unitPrice || 0);
+          const qty = Number(item.quantity || 1);
+          movementMap[name].salesAmount += (price * qty);
+          movementMap[name].salesQty += qty;
+        });
+      });
+
+      purchaseInvoices.forEach(pur => {
+        (pur.items || []).forEach(item => {
+          const name = item.productName || 'صنف غير محدد';
+          if (!movementMap[name]) {
+            movementMap[name] = { salesAmount: 0, purchaseAmount: 0, salesQty: 0, purchaseQty: 0 };
+          }
+          const cost = Number(item.unitCost || item.unitPrice || 0);
+          const qty = Number(item.quantity || 1);
+          movementMap[name].purchaseAmount += (cost * qty);
+          movementMap[name].purchaseQty += qty;
+        });
+      });
+
+      products.forEach(p => {
+        const name = p.name;
+        if (!movementMap[name]) {
+          movementMap[name] = { salesAmount: 0, purchaseAmount: 0, salesQty: 0, purchaseQty: 0 };
+        }
+      });
+
+      const sortedItems = Object.entries(movementMap)
+        .map(([name, data]) => ({ name, ...data, totalActivity: data.salesAmount + data.purchaseAmount + data.salesQty }))
+        .sort((a, b) => b.totalActivity - a.totalActivity);
+
+      if (sortedItems.length > 0) {
+        const top = sortedItems.slice(0, 8);
+        catLabels = top.map(i => i.name);
+        catSalesValues = top.map(i => i.salesAmount);
+        catPurValues = top.map(i => i.purchaseAmount);
+      } else {
+        catLabels = ['لا توجد حركات مسجلة بعد'];
+        catSalesValues = [0];
+        catPurValues = [0];
+      }
     }
+
+    const hasData = catSalesValues.some(v => v > 0) || catPurValues.some(v => v > 0);
+
+    categoryChart = new Chart(ctxCat, {
+      type: 'bar',
+      data: {
+        labels: catLabels,
+        datasets: [
+          {
+            label: 'المبيعات (دج)',
+            data: catSalesValues,
+            backgroundColor: 'rgba(59, 130, 246, 0.85)',
+            borderRadius: 6
+          },
+          {
+            label: 'المشتريات (دج)',
+            data: catPurValues,
+            backgroundColor: 'rgba(13, 148, 136, 0.85)',
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: hasData,
+            position: 'bottom',
+            labels: { font: { family: 'Tajawal', size: 12 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ` ${context.dataset.label}: ${formatMoney(context.raw)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: {
+              callback: function(val) {
+                return val.toLocaleString('ar-DZ') + ' دج';
+              }
+            }
+          },
+          y: { grid: { display: false } }
+        }
+      }
+    });
   }
 
   // =========================================================================
@@ -1182,9 +1377,32 @@ window.ReportsModule = (function() {
     if (purchaseChart) purchaseChart.destroy();
 
     const invoices = (window.ToushirStore && window.ToushirStore.purchaseInvoices) ? window.ToushirStore.purchaseInvoices : [];
-    let labels = ['مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس'];
-    let purchasesData = [820000, 950000, 1100000, 1050000, 2450000, 2880000];
-    let paidData = [600000, 750000, 850000, 900000, 1350000, 1710000];
+    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const now = new Date();
+
+    let labels = [];
+    let purchasesData = [];
+    let paidData = [];
+
+    // Calculate last 6 months dynamically from actual database invoices
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(monthNames[d.getMonth()]);
+
+      let mTotal = 0;
+      let mPaid = 0;
+
+      invoices.forEach(inv => {
+        const id = new Date(inv.createdAt || inv.date || Date.now());
+        if (id.getMonth() === d.getMonth() && id.getFullYear() === d.getFullYear()) {
+          mTotal += Number(inv.totalAmount || 0);
+          mPaid += Number(inv.amountPaid || 0);
+        }
+      });
+
+      purchasesData.push(mTotal);
+      paidData.push(mPaid);
+    }
 
     purchaseChart = new Chart(ctxTrend, {
       type: 'line',
@@ -1214,8 +1432,27 @@ window.ReportsModule = (function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Tajawal' } } } },
-        scales: { y: { grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Tajawal' } } },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ` ${context.dataset.label}: ${formatMoney(context.raw)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: {
+              callback: function(val) {
+                return val.toLocaleString('ar-DZ') + ' دج';
+              }
+            }
+          },
+          x: { grid: { display: false } }
+        }
       }
     });
   }
@@ -1227,14 +1464,37 @@ window.ReportsModule = (function() {
     if (salesChart) salesChart.destroy();
 
     const salesInvoices = (window.ToushirStore && window.ToushirStore.salesInvoices) ? window.ToushirStore.salesInvoices : [];
-    const monthNames = ['مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس'];
-    let salesData = [350000, 420000, 580000, 640000, 820000, 950000];
-    let cashData = [310000, 390000, 520000, 590000, 760000, 890000];
+    const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const now = new Date();
+
+    let labels = [];
+    let salesData = [];
+    let cashData = [];
+
+    // Calculate last 6 months dynamically from real sales invoices in the database
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(monthNames[d.getMonth()]);
+
+      let mTotal = 0;
+      let mCash = 0;
+
+      salesInvoices.forEach(inv => {
+        const id = new Date(inv.createdAt || inv.date || Date.now());
+        if (id.getMonth() === d.getMonth() && id.getFullYear() === d.getFullYear()) {
+          mTotal += Number(inv.totalAmount || 0);
+          mCash += Number(inv.amountPaid !== undefined ? inv.amountPaid : inv.totalAmount || 0);
+        }
+      });
+
+      salesData.push(mTotal);
+      cashData.push(mCash);
+    }
 
     salesChart = new Chart(ctxSales, {
       type: 'bar',
       data: {
-        labels: monthNames,
+        labels: labels,
         datasets: [
           {
             label: 'إجمالي المبيعات (دج)',
@@ -1253,8 +1513,27 @@ window.ReportsModule = (function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Tajawal' } } } },
-        scales: { y: { grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Tajawal' } } },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ` ${context.dataset.label}: ${formatMoney(context.raw)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: {
+              callback: function(val) {
+                return val.toLocaleString('ar-DZ') + ' دج';
+              }
+            }
+          },
+          x: { grid: { display: false } }
+        }
       }
     });
   }
@@ -1272,7 +1551,9 @@ window.ReportsModule = (function() {
     paySupplierDebt,
     viewSupplierStatement,
     whatsappSupplier,
-    exportPayablesToExcel
+    exportPayablesToExcel,
+    setCategoryChartView,
+    renderCategoryPurchasesChart
   };
 })();
 
