@@ -45,17 +45,12 @@ window.ToushirStore = {
 
   // Load from Real Database Server API or LocalStorage
   async init() {
-    // 1. First priority: Load from real server database
+    // 1. First priority: Load from server database API if running
     try {
       const res = await fetch('/api/data?t=' + Date.now());
       if (res.ok) {
         const data = await res.json();
-        if (data && typeof data === 'object' && (
-          (Array.isArray(data.products) && data.products.length > 0) ||
-          (Array.isArray(data.suppliers) && data.suppliers.length > 0) ||
-          (Array.isArray(data.purchaseInvoices) && data.purchaseInvoices.length > 0) ||
-          (Array.isArray(data.salesInvoices) && data.salesInvoices.length > 0)
-        )) {
+        if (data && typeof data === 'object') {
           this.applyLoadedData(data);
           this.saveToLocalStorage(false);
           console.log('[Store] ✅ Loaded real data from server database (/api/data)');
@@ -69,15 +64,12 @@ window.ToushirStore = {
       console.warn('[Store] Real DB server fetch failed, checking local stores:', err.message);
     }
 
-    // 2. Fallback: Load from LocalStorage if it has valid populated products
+    // 2. Fallback: Load from LocalStorage if it has valid saved data
     const saved = localStorage.getItem('toushir_erp_store_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && (
-          (Array.isArray(parsed.products) && parsed.products.length > 0) ||
-          (Array.isArray(parsed.suppliers) && parsed.suppliers.length > 0)
-        )) {
+        if (parsed && typeof parsed === 'object') {
           this.applyLoadedData(parsed);
           console.log('[Store] 💾 Loaded real data from LocalStorage store');
           return true;
@@ -87,273 +79,267 @@ window.ToushirStore = {
       }
     }
 
-    // 3. Fallback: Load from window.REAL_DATABASE (Guaranteed to NEVER be empty!)
-    if (window.REAL_DATABASE && typeof window.REAL_DATABASE === 'object') {
-      console.log('[Store] ⚡ Loaded authentic Algerian real database fallback (REAL_DATABASE)');
-      this.applyLoadedData(window.REAL_DATABASE);
-      this.saveToLocalStorage(true);
-      return true;
-    }
-
-    this.seedWorkers();
+    // 3. Fallback: Initialize clean state with default workers (no demo data)
+    this.seedInitialData();
     return false;
   },
 
   async restoreRealDatabase() {
-    try {
-      const res = await fetch('/api/restore-real');
-      if (res.ok) {
-        const json = await res.json();
-        if (json && json.data) {
-          this.applyLoadedData(json.data);
-          this.saveToLocalStorage(false);
-          if (window.ToushirApp) {
-            window.ToushirApp.renderAllViews();
-            window.ToushirApp.showToast('✅ تم تأكيد واسترجاع قاعدة البيانات الحقيقية بنجاح!', 'success');
-          }
-          return;
+  try {
+    const res = await fetch('/api/restore-real');
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.data) {
+        this.applyLoadedData(json.data);
+        this.saveToLocalStorage(false);
+        if (window.ToushirApp) {
+          window.ToushirApp.renderAllViews();
+          window.ToushirApp.showToast('✅ تم تأكيد واسترجاع قاعدة البيانات الحقيقية بنجاح!', 'success');
         }
-      }
-    } catch (_) {}
-
-    if (window.REAL_DATABASE) {
-      this.applyLoadedData(window.REAL_DATABASE);
-      this.saveToLocalStorage(true);
-      if (window.ToushirApp) {
-        window.ToushirApp.renderAllViews();
-        window.ToushirApp.showToast('✅ تم تحميل وتفعيل قاعدة البيانات الحقيقية بنجاح!', 'success');
+        return;
       }
     }
-  },
+  } catch (_) { }
 
-  applyLoadedData(parsed) {
-    this.suppliers = parsed.suppliers || [];
-    this.customers = parsed.customers || [];
-    this.customerLedgers = parsed.customerLedgers || {};
-    this.purchaseInvoices = parsed.purchaseInvoices || [];
-    this.salesInvoices = parsed.salesInvoices || [];
-    this.products = parsed.products || [];
-    this.workers = parsed.workers || [];
-    this.ledgers = parsed.ledgers || {};
-    this.whatsappNotifications = parsed.whatsappNotifications || [];
-    this.readAlertIds = parsed.readAlertIds || [];
-    if (parsed.settings) this.settings = { ...this.settings, ...parsed.settings };
-
-    // Filter out any leftover demo workers
-    const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
-    this.workers = (this.workers || []).filter(w => !demoNames.includes(w.name));
-    if (this.workers.length === 0) {
-      this.seedWorkers();
+  if (window.REAL_DATABASE) {
+    this.applyLoadedData(window.REAL_DATABASE);
+    this.saveToLocalStorage(true);
+    if (window.ToushirApp) {
+      window.ToushirApp.renderAllViews();
+      window.ToushirApp.showToast('✅ تم تحميل وتفعيل قاعدة البيانات الحقيقية بنجاح!', 'success');
     }
-  },
+  }
+},
 
-  saveToLocalStorage(syncToServer = true) {
-    const payload = {
-      suppliers: this.suppliers,
-      customers: this.customers,
-      customerLedgers: this.customerLedgers,
-      purchaseInvoices: this.purchaseInvoices,
-      salesInvoices: this.salesInvoices,
-      products: this.products,
-      workers: this.workers,
-      ledgers: this.ledgers,
-      whatsappNotifications: this.whatsappNotifications,
-      readAlertIds: this.readAlertIds,
-      settings: this.settings
-    };
+applyLoadedData(parsed) {
+  this.suppliers = parsed.suppliers || [];
+  this.customers = parsed.customers || [];
+  this.customerLedgers = parsed.customerLedgers || {};
+  this.purchaseInvoices = parsed.purchaseInvoices || [];
+  this.salesInvoices = parsed.salesInvoices || [];
+  this.products = parsed.products || [];
+  this.workers = parsed.workers || [];
+  this.ledgers = parsed.ledgers || {};
+  this.whatsappNotifications = parsed.whatsappNotifications || [];
+  this.readAlertIds = parsed.readAlertIds || [];
+  if (parsed.settings) this.settings = { ...this.settings, ...parsed.settings };
 
-    localStorage.setItem('toushir_erp_store_v2', JSON.stringify(payload));
+  // Filter out any leftover demo workers
+  const demoNames = ['أحمد المالكي', 'ياسين بن علي', 'عمر فاروق'];
+  this.workers = (this.workers || []).filter(w => !demoNames.includes(w.name));
+  if (this.workers.length === 0) {
+    this.seedWorkers();
+  }
+},
 
-    if (syncToServer) {
-      clearTimeout(this._serverSyncTimer);
-      this._serverSyncTimer = setTimeout(() => {
-        fetch('/api/data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).catch(err => console.warn('[Store] Auto-save to server DB failed:', err.message));
-      }, 500);
-    }
-  },
+saveToLocalStorage(syncToServer = true) {
+  const payload = {
+    suppliers: this.suppliers,
+    customers: this.customers,
+    customerLedgers: this.customerLedgers,
+    purchaseInvoices: this.purchaseInvoices,
+    salesInvoices: this.salesInvoices,
+    products: this.products,
+    workers: this.workers,
+    ledgers: this.ledgers,
+    whatsappNotifications: this.whatsappNotifications,
+    readAlertIds: this.readAlertIds,
+    settings: this.settings
+  };
 
-  currentWorkerId: 'wrk_1',
+  localStorage.setItem('toushir_erp_store_v2', JSON.stringify(payload));
+
+  if (syncToServer) {
+    clearTimeout(this._serverSyncTimer);
+    this._serverSyncTimer = setTimeout(() => {
+      fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn('[Store] Auto-save to server DB failed:', err.message));
+    }, 500);
+  }
+},
+
+currentWorkerId: 'wrk_1',
 
   seedWorkers() {
-    this.workers = [
-      {
-        id: 'wrk_1',
-        name: 'المدير',
-        role: 'مدير النظام (Admin)',
-        phone: '0661000000',
-        salary: 85000,
-        pin: '1234',
-        status: 'Active',
-        hireDate: new Date().toISOString().slice(0, 10),
-        permissions: ['dashboard', 'pos', 'customers', 'suppliers', 'purchases', 'reports', 'settings']
-      }
-    ];
-  },
-
-  seedInitialData() {
-    if (window.REAL_DATABASE) {
-      this.applyLoadedData(window.REAL_DATABASE);
-    } else {
-      this.seedWorkers();
-      this.suppliers = [];
-      this.customers = [];
-      this.customerLedgers = {};
-      this.products = [];
-      this.purchaseInvoices = [];
-      this.salesInvoices = [];
-      this.ledgers = {};
-      this.whatsappNotifications = [];
-      this.readAlertIds = [];
+  this.workers = [
+    {
+      id: 'wrk_1',
+      name: 'المدير',
+      role: 'مدير النظام (Admin)',
+      phone: '0661000000',
+      salary: 85000,
+      pin: '1234',
+      status: 'Active',
+      hireDate: new Date().toISOString().slice(0, 10),
+      permissions: ['dashboard', 'pos', 'customers', 'suppliers', 'purchases', 'reports', 'settings']
     }
-    this.saveToLocalStorage(true);
-  },
+  ];
+},
+
+seedInitialData() {
+
+  // Start with an empty business database.
+  // Do not load demo/REAL_DATABASE data.
+  this.seedWorkers();
+
+  this.suppliers = [];
+  this.customers = [];
+  this.customerLedgers = {};
+  this.products = [];
+  this.purchaseInvoices = [];
+  this.salesInvoices = [];
+  this.ledgers = {};
+  this.whatsappNotifications = [];
+  this.readAlertIds = [];
+
+  this.saveToLocalStorage(true);
+},
 
   async resetDatabaseToZero() {
-    try {
-      await fetch('/api/reset', { method: 'POST' });
-    } catch (_) {}
-    this.seedWorkers();
-    this.suppliers = [];
-    this.customers = [];
-    this.customerLedgers = {};
-    this.products = [];
-    this.purchaseInvoices = [];
-    this.salesInvoices = [];
-    this.ledgers = {};
-    this.whatsappNotifications = [];
-    this.readAlertIds = [];
-    localStorage.removeItem('toushir_erp_store_v2');
-    localStorage.setItem('toushir_db_version', 'v5_real_database_clean');
-    this.saveToLocalStorage(false);
-    if (window.ToushirApp) {
-      window.ToushirApp.showToast('✅ تم تصفير وتهيئة قاعدة البيانات بنجاح ليصبح كل شيء 0!', 'success');
-      window.ToushirApp.showAppLayout();
+  try {
+    await fetch('/api/reset', { method: 'POST' });
+  } catch (_) { }
+  this.seedWorkers();
+  this.suppliers = [];
+  this.customers = [];
+  this.customerLedgers = {};
+  this.products = [];
+  this.purchaseInvoices = [];
+  this.salesInvoices = [];
+  this.ledgers = {};
+  this.whatsappNotifications = [];
+  this.readAlertIds = [];
+  localStorage.removeItem('toushir_erp_store_v2');
+  localStorage.setItem('toushir_db_version', 'v5_real_database_clean');
+  this.saveToLocalStorage(false);
+  if (window.ToushirApp) {
+    window.ToushirApp.showToast('✅ تم تصفير وتهيئة قاعدة البيانات بنجاح ليصبح كل شيء 0!', 'success');
+    window.ToushirApp.showAppLayout();
+  }
+},
+
+// 🔔 Compute Realtime Smart Alerts (Stock Levels, Expiry Dates & Supplier Dues)
+computeAlerts() {
+  const alerts = [];
+  const readIds = this.readAlertIds || [];
+  const products = this.products || [];
+
+  const now = new Date();
+  // Normalize today to midnight for precise whole-day calculations
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  // 1. Stock Quantities & Expiry Date Checks
+  products.forEach(p => {
+    const stock = Number(p.stockQuantity !== undefined ? p.stockQuantity : (p.stock !== undefined ? p.stock : 0));
+
+    // 1.1 Low Stock / Out of Stock Check (<= 10 units)
+    if (stock <= 10) {
+      const isOutOfStock = stock <= 0;
+      const alertId = `stock_${p.id || p.name}_${stock}`;
+      alerts.push({
+        id: alertId,
+        type: 'low_stock',
+        severity: isOutOfStock ? 'danger' : 'warning',
+        icon: isOutOfStock ? '🚨' : '⚠️',
+        title: isOutOfStock ? '🚨 نفد المخزون تماماً' : '⚠️ مخزون منخفض',
+        productName: p.name,
+        productId: p.id || p.name,
+        stock: stock,
+        message: isOutOfStock
+          ? `المنتج: ${p.name} | الكمية المتبقية: 0 قطع (نفد المخزون، يرجى إعادة الطلب فوراً)`
+          : `المنتج: ${p.name} | الكمية المتبقية: ${stock} قطع (يرجى إعادة طلب المخزون قبل النفاد)`,
+        badgeText: isOutOfStock ? 'نفد (0 قطع)' : `متبقي: ${stock} قطع`,
+        badgeClass: isOutOfStock ? 'badge-danger' : 'badge-warning',
+        isRead: readIds.includes(alertId),
+        timestamp: new Date().toISOString()
+      });
     }
-  },
 
-  // 🔔 Compute Realtime Smart Alerts (Stock Levels, Expiry Dates & Supplier Dues)
-  computeAlerts() {
-    const alerts = [];
-    const readIds = this.readAlertIds || [];
-    const products = this.products || [];
+    // 1.2 Expiry Date Check
+    if (p.expiryDate && typeof p.expiryDate === 'string' && p.expiryDate.trim() !== '') {
+      const expDate = new Date(p.expiryDate);
+      if (!isNaN(expDate.getTime())) {
+        const expMidnight = new Date(expDate.getFullYear(), expDate.getMonth(), expDate.getDate()).getTime();
+        const diffDays = Math.round((expMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
+        const alertId = `exp_${p.id || p.name}_${p.expiryDate}`;
 
-    const now = new Date();
-    // Normalize today to midnight for precise whole-day calculations
-    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-    // 1. Stock Quantities & Expiry Date Checks
-    products.forEach(p => {
-      const stock = Number(p.stockQuantity !== undefined ? p.stockQuantity : (p.stock !== undefined ? p.stock : 0));
-
-      // 1.1 Low Stock / Out of Stock Check (<= 10 units)
-      if (stock <= 10) {
-        const isOutOfStock = stock <= 0;
-        const alertId = `stock_${p.id || p.name}_${stock}`;
-        alerts.push({
-          id: alertId,
-          type: 'low_stock',
-          severity: isOutOfStock ? 'danger' : 'warning',
-          icon: isOutOfStock ? '🚨' : '⚠️',
-          title: isOutOfStock ? '🚨 نفد المخزون تماماً' : '⚠️ مخزون منخفض',
-          productName: p.name,
-          productId: p.id || p.name,
-          stock: stock,
-          message: isOutOfStock
-            ? `المنتج: ${p.name} | الكمية المتبقية: 0 قطع (نفد المخزون، يرجى إعادة الطلب فوراً)`
-            : `المنتج: ${p.name} | الكمية المتبقية: ${stock} قطع (يرجى إعادة طلب المخزون قبل النفاد)`,
-          badgeText: isOutOfStock ? 'نفد (0 قطع)' : `متبقي: ${stock} قطع`,
-          badgeClass: isOutOfStock ? 'badge-danger' : 'badge-warning',
-          isRead: readIds.includes(alertId),
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 1.2 Expiry Date Check
-      if (p.expiryDate && typeof p.expiryDate === 'string' && p.expiryDate.trim() !== '') {
-        const expDate = new Date(p.expiryDate);
-        if (!isNaN(expDate.getTime())) {
-          const expMidnight = new Date(expDate.getFullYear(), expDate.getMonth(), expDate.getDate()).getTime();
-          const diffDays = Math.round((expMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
-          const alertId = `exp_${p.id || p.name}_${p.expiryDate}`;
-
-          if (diffDays <= 0) {
-            // Expired product
-            alerts.push({
-              id: alertId,
-              type: 'expired',
-              severity: 'danger',
-              icon: '🔴',
-              title: '🔴 منتج منتهي الصلاحية',
-              productName: p.name,
-              productId: p.id || p.name,
-              expiryDate: p.expiryDate,
-              daysRemaining: diffDays,
-              message: `المنتج: ${p.name} | تاريخ الانتهاء: ${p.expiryDate} (انتهت الصلاحية منذ ${Math.abs(diffDays)} يوم - يجب شطبه وإتلافه)`,
-              badgeText: `منتهي الصلاحية (${p.expiryDate})`,
-              badgeClass: 'badge-danger',
-              isRead: readIds.includes(alertId),
-              timestamp: new Date().toISOString()
-            });
-          } else if (diffDays <= 15) {
-            // Near expiry (<= 15 days)
-            alerts.push({
-              id: alertId,
-              type: 'near_expiry',
-              severity: diffDays <= 7 ? 'danger' : 'warning',
-              icon: diffDays <= 7 ? '🔴' : '⏰',
-              title: '⏰ انتهاء الصلاحية قريب جداً',
-              productName: p.name,
-              productId: p.id || p.name,
-              expiryDate: p.expiryDate,
-              daysRemaining: diffDays,
-              message: `المنتج: ${p.name} | تاريخ الانتهاء: ${p.expiryDate} | المتبقي: ${diffDays} يومًا فقط`,
-              badgeText: `متبقي ${diffDays} يومًا`,
-              badgeClass: diffDays <= 7 ? 'badge-danger' : 'badge-warning',
-              isRead: readIds.includes(alertId),
-              timestamp: new Date().toISOString()
-            });
-          }
+        if (diffDays <= 0) {
+          // Expired product
+          alerts.push({
+            id: alertId,
+            type: 'expired',
+            severity: 'danger',
+            icon: '🔴',
+            title: '🔴 منتج منتهي الصلاحية',
+            productName: p.name,
+            productId: p.id || p.name,
+            expiryDate: p.expiryDate,
+            daysRemaining: diffDays,
+            message: `المنتج: ${p.name} | تاريخ الانتهاء: ${p.expiryDate} (انتهت الصلاحية منذ ${Math.abs(diffDays)} يوم - يجب شطبه وإتلافه)`,
+            badgeText: `منتهي الصلاحية (${p.expiryDate})`,
+            badgeClass: 'badge-danger',
+            isRead: readIds.includes(alertId),
+            timestamp: new Date().toISOString()
+          });
+        } else if (diffDays <= 15) {
+          // Near expiry (<= 15 days)
+          alerts.push({
+            id: alertId,
+            type: 'near_expiry',
+            severity: diffDays <= 7 ? 'danger' : 'warning',
+            icon: diffDays <= 7 ? '🔴' : '⏰',
+            title: '⏰ انتهاء الصلاحية قريب جداً',
+            productName: p.name,
+            productId: p.id || p.name,
+            expiryDate: p.expiryDate,
+            daysRemaining: diffDays,
+            message: `المنتج: ${p.name} | تاريخ الانتهاء: ${p.expiryDate} | المتبقي: ${diffDays} يومًا فقط`,
+            badgeText: `متبقي ${diffDays} يومًا`,
+            badgeClass: diffDays <= 7 ? 'badge-danger' : 'badge-warning',
+            isRead: readIds.includes(alertId),
+            timestamp: new Date().toISOString()
+          });
         }
       }
-    });
+    }
+  });
 
-    // 2. Supplier Dues & Debt Warnings
-    const currency = this.settings.currency || 'دج';
-    (this.suppliers || []).forEach(s => {
-      const debt = Number(s.currentDebt || 0);
-      if (debt > 150000) {
-        const alertId = `sup_debt_${s.id}_${Math.round(debt / 10000)}`;
-        alerts.push({
-          id: alertId,
-          type: 'supplier_debt',
-          severity: debt > 500000 ? 'danger' : 'warning',
-          icon: '💸',
-          title: '💸 ديون مستحقة للمورد واجبة السداد',
-          supplierName: s.name,
-          supplierId: s.id,
-          debt: debt,
-          message: `المورد: ${s.name} | إجمالي الديون المستحقة المتراكمة: ${debt.toLocaleString('ar-DZ')} ${currency}`,
-          badgeText: `دين: ${debt.toLocaleString('ar-DZ')} دج`,
-          badgeClass: debt > 500000 ? 'badge-danger' : 'badge-warning',
-          isRead: readIds.includes(alertId),
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
+  // 2. Supplier Dues & Debt Warnings
+  const currency = this.settings.currency || 'دج';
+  (this.suppliers || []).forEach(s => {
+    const debt = Number(s.currentDebt || 0);
+    if (debt > 150000) {
+      const alertId = `sup_debt_${s.id}_${Math.round(debt / 10000)}`;
+      alerts.push({
+        id: alertId,
+        type: 'supplier_debt',
+        severity: debt > 500000 ? 'danger' : 'warning',
+        icon: '💸',
+        title: '💸 ديون مستحقة للمورد واجبة السداد',
+        supplierName: s.name,
+        supplierId: s.id,
+        debt: debt,
+        message: `المورد: ${s.name} | إجمالي الديون المستحقة المتراكمة: ${debt.toLocaleString('ar-DZ')} ${currency}`,
+        badgeText: `دين: ${debt.toLocaleString('ar-DZ')} دج`,
+        badgeClass: debt > 500000 ? 'badge-danger' : 'badge-warning',
+        isRead: readIds.includes(alertId),
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
 
-    // Sort: Unread first, then expired -> near expiry -> low stock -> supplier debt
-    const typePriority = { 'expired': 1, 'near_expiry': 2, 'low_stock': 3, 'supplier_debt': 4 };
-    alerts.sort((a, b) => {
-      if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-      return (typePriority[a.type] || 99) - (typePriority[b.type] || 99);
-    });
+  // Sort: Unread first, then expired -> near expiry -> low stock -> supplier debt
+  const typePriority = { 'expired': 1, 'near_expiry': 2, 'low_stock': 3, 'supplier_debt': 4 };
+  alerts.sort((a, b) => {
+    if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+    return (typePriority[a.type] || 99) - (typePriority[b.type] || 99);
+  });
 
-    return alerts;
-  }
+  return alerts;
+}
 };
 
 // 2. Application UI Controller
