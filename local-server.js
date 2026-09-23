@@ -82,16 +82,16 @@ function readDb() {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(data);
-      if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.products)) {
         return parsed;
       }
     }
   } catch (err) {
     console.error('Error reading database.json:', err.message);
   }
-  const realDb = getRealDb();
-  writeDb(realDb);
-  return realDb;
+  const cleanDb = getDefaultDb();
+  writeDb(cleanDb);
+  return cleanDb;
 }
 
 // Write database atomically
@@ -144,10 +144,7 @@ const server = http.createServer((req, res) => {
         const merged = { ...current };
         for (const [key, val] of Object.entries(payload)) {
           if (Array.isArray(val)) {
-            // Only update array if it has elements or if current was already empty
-            if (val.length > 0 || !Array.isArray(current[key]) || current[key].length === 0) {
-              merged[key] = val;
-            }
+            merged[key] = val;
           } else if (val && typeof val === 'object') {
             merged[key] = { ...(current[key] || {}), ...val };
           } else if (val !== undefined) {
