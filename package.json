@@ -4,6 +4,7 @@
   "private": true,
   "description": "توشير ERP - نظام إدارة المخزون ونقطة البيع",
   "scripts": {
+    "build": "echo 'Static site ready'",
     "dev": "node local-server.js"
   }
 }

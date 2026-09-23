@@ -8,8 +8,20 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios = require("axios");
 
-admin.initializeApp();
-const db = admin.firestore();
+try {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
+} catch (e) {
+  console.warn("[Firebase Functions] Admin init skipped or failed:", e.message);
+}
+
+let db;
+try {
+  db = admin.firestore();
+} catch (e) {
+  db = null;
+}
 
 /**
  * Helper: Validate and convert phone number to E.164 format (+213...)
@@ -305,3 +317,13 @@ exports.onPurchaseInvoiceConfirmed = functions.firestore
 
     return null;
   });
+
+// Fallback HTTP handler if mistakenly invoked on Vercel
+exports.api = functions.https ? functions.https.onRequest((req, res) => {
+  res.status(200).send("Toushir Functions Active");
+}) : (req, res) => {
+  if (res && typeof res.writeHead === 'function') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Toushir Functions Active');
+  }
+};
