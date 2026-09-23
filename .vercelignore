@@ -1,9 +1,20 @@
-# Ignore Firebase Cloud Functions (must not be built by Vercel)
+# Ignore Firebase Cloud Functions
+functions
+functions/**
 /functions
-/ToushirApp
+/functions/**
 
-# Ignore local servers and test scripts
+# Ignore mobile app
+ToushirApp
+ToushirApp/**
+/ToushirApp
+/ToushirApp/**
+
+# Ignore local server & testing scripts
+local-server.js
+/local-server.js
 server.js
+/server.js
 test-rtdb.js
 test-rules.js
 database.json
