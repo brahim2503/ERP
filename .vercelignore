@@ -17,7 +17,6 @@ server.js
 /server.js
 test-rtdb.js
 test-rules.js
-database.json
 database.rules.json
 firestore.rules
 firestore.indexes.json

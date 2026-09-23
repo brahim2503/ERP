@@ -2,9 +2,9 @@
   "suppliers": [],
   "customers": [],
   "customerLedgers": {},
+  "products": [],
   "purchaseInvoices": [],
   "salesInvoices": [],
-  "products": [],
   "workers": [
     {
       "id": "wrk_1",
