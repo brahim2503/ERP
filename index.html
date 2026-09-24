@@ -171,6 +171,12 @@
           <span style="font-size: 0.7rem; color: #94a3b8;">إدارة المخزون ونقطة البيع</span>
         </div>
         <span class="brand-tag">v2.5</span>
+        <button type="button" class="btn-close-sidebar no-print" id="btn-close-sidebar" title="إغلاق القائمة">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
 
       <ul class="nav-menu">
@@ -275,6 +281,8 @@
         </div>
       </div>
     </aside>
+    <!-- Mobile Sidebar Backdrop -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
     <!-- Main Content Wrapper -->
     <div class="main-wrapper">
@@ -297,7 +305,8 @@
           <button class="btn btn-secondary btn-sm" id="btn-switch-worker-header"
             onclick="ToushirApp.openSwitchWorkerModal()" title="تغيير العامل / تطبيق الصلاحيات"
             style="display: flex; align-items: center; gap: 8px; font-weight: 700; background: var(--bg-card); border: 1px solid var(--border-color);">
-            <span style="font-size: 0.85rem;">👷 العامل:</span>
+            <span class="worker-icon" style="font-size: 0.85rem;">👷</span>
+            <span class="worker-label" style="font-size: 0.85rem;">العامل:</span>
             <span id="header-worker-name" style="color: var(--primary-teal-dark); font-weight: 900;">المدير</span>
             <span class="badge badge-active" id="header-worker-role" style="font-size: 0.65rem;">مدير النظام</span>
           </button>
@@ -377,8 +386,7 @@
         <!-- ================= VIEW 1: DASHBOARD ================= -->
         <section class="view-section active" id="view-dashboard">
           <!-- KPI Summary Cards Grid -->
-          <div
-            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <div class="dashboard-kpi-grid">
             <div class="kpi-card gold">
               <div class="kpi-header">
                 <span class="kpi-title">إجمالي الديون للموردين</span>
@@ -658,8 +666,8 @@
             <!-- Left Side: Product Catalog Grid & Filters -->
             <div>
               <!-- Search & Barcode Header -->
-              <div style="display: flex; gap: 10px; margin-bottom: 16px;">
-                <div class="search-wrapper" style="flex: 1;">
+              <div class="pos-action-bar" style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div class="search-wrapper pos-search-wrapper" style="flex: 1; min-width: 200px;">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -667,24 +675,26 @@
                   <input type="text" class="form-control" id="pos-search-input"
                     placeholder="بحث عن منتج بالاسم أو البار كود (Scan Barcode)...">
                 </div>
-                <button class="btn btn-primary" id="btn-open-barcode-scanner"
-                  style="display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 0 16px; font-weight: 700; border-radius: 8px;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
-                    <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
-                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
-                    <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
-                    <line x1="7" y1="8" x2="7" y2="16"></line>
-                    <line x1="10" y1="8" x2="10" y2="16"></line>
-                    <line x1="14" y1="8" x2="14" y2="16"></line>
-                    <line x1="17" y1="8" x2="17" y2="16"></line>
-                  </svg>
-                  <span>📷 مسح بالباركود</span>
-                </button>
-                <button class="btn btn-outline-teal" id="btn-open-quick-scale"
-                  style="display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 0 16px; font-weight: 700; border-radius: 8px;">
-                  <span>⚖️ بيع بالميزان</span>
-                </button>
+                <div class="pos-action-buttons" style="display: flex; gap: 8px;">
+                  <button class="btn btn-primary" id="btn-open-barcode-scanner"
+                    style="display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 0 16px; font-weight: 700; border-radius: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                      <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                      <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                      <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                      <line x1="7" y1="8" x2="7" y2="16"></line>
+                      <line x1="10" y1="8" x2="10" y2="16"></line>
+                      <line x1="14" y1="8" x2="14" y2="16"></line>
+                      <line x1="17" y1="8" x2="17" y2="16"></line>
+                    </svg>
+                    <span>📷 مسح بالباركود</span>
+                  </button>
+                  <button class="btn btn-outline-teal" id="btn-open-quick-scale"
+                    style="display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 0 16px; font-weight: 700; border-radius: 8px;">
+                    <span>⚖️ بيع بالميزان</span>
+                  </button>
+                </div>
               </div>
 
               <!-- Category Filter Chips -->

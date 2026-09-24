@@ -714,33 +714,98 @@ window.ToushirApp = {
     this.renderAllViews();
   },
 
+  openSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.add('open');
+    if (backdrop) backdrop.classList.add('active');
+    document.body.classList.add('sidebar-open');
+  },
+
+  closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+  },
+
+  toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+      this.closeSidebar();
+    } else {
+      this.openSidebar();
+    }
+  },
+
   setupEventListeners() {
-    // Navigation Routing
+    // Navigation Routing (with mobile drawer auto-close)
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
         const targetView = item.getAttribute('data-view');
         this.switchView(targetView);
+        this.closeSidebar();
       });
     });
 
     // Dark Theme Toggle
-    document.getElementById('btn-toggle-theme').addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-    });
+    const btnToggleTheme = document.getElementById('btn-toggle-theme');
+    if (btnToggleTheme) {
+      btnToggleTheme.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+      });
+    }
 
     // RTL/LTR Toggle
-    document.getElementById('btn-toggle-dir').addEventListener('click', () => {
-      const currentDir = document.body.getAttribute('dir');
-      const nextDir = currentDir === 'ltr' ? 'rtl' : 'ltr';
-      document.body.setAttribute('dir', nextDir);
+    const btnToggleDir = document.getElementById('btn-toggle-dir');
+    if (btnToggleDir) {
+      btnToggleDir.addEventListener('click', () => {
+        const currentDir = document.body.getAttribute('dir');
+        const nextDir = currentDir === 'ltr' ? 'rtl' : 'ltr';
+        document.body.setAttribute('dir', nextDir);
+      });
+    }
+
+    // Sidebar Mobile Drawer Events
+    const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+    if (btnToggleSidebar) {
+      btnToggleSidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleSidebar();
+      });
+    }
+
+    const btnCloseSidebar = document.getElementById('btn-close-sidebar');
+    if (btnCloseSidebar) {
+      btnCloseSidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeSidebar();
+      });
+    }
+
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    if (sidebarBackdrop) {
+      sidebarBackdrop.addEventListener('click', () => {
+        this.closeSidebar();
+      });
+    }
+
+    // Close drawer on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.closeSidebar();
+      }
     });
 
-    // Sidebar Mobile Toggle
-    document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
+    // Close drawer if resized to desktop
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 768) {
+        this.closeSidebar();
+      }
     });
 
     // Dashboard Quick Actions & Chart Filter
@@ -1067,6 +1132,8 @@ window.ToushirApp = {
   },
 
   switchView(viewName) {
+    this.closeSidebar();
+
     document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 

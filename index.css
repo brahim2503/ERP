@@ -367,17 +367,355 @@ body[dir="ltr"] .nav-item:hover {
   gap: 20px;
 }
 
+/* Sidebar Backdrop (Default hidden on desktop) */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 997;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-close-sidebar {
+  display: none;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
 @media (max-width: 1200px) {
+  .dashboard-kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-cols-3 { grid-template-columns: repeat(2, 1fr); }
 }
 
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+  .content-area {
+    padding: 20px;
+  }
+  .pos-container {
+    grid-template-columns: 1fr 320px;
+  }
+}
+
 @media (max-width: 768px) {
-  .grid-cols-4, .grid-cols-3, .grid-cols-2 { grid-template-columns: 1fr; }
-  .sidebar { transform: translateX(100%); }
-  body[dir="ltr"] .sidebar { transform: translateX(-100%); }
-  .main-wrapper { margin-inline-start: 0; }
-  .sidebar.open { transform: translateX(0); }
+  /* Prevent horizontal layout overflow */
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body.sidebar-open {
+    overflow: hidden;
+  }
+
+  /* Main Layout */
+  .main-wrapper {
+    margin-inline-start: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    overflow-x: hidden;
+  }
+
+  /* Sidebar Drawer */
+  .sidebar-backdrop {
+    display: block;
+  }
+
+  .sidebar-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    width: 280px;
+    max-width: 82vw;
+    z-index: 998;
+    transform: translateX(100%);
+    visibility: hidden;
+    pointer-events: none;
+    box-shadow: none;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), visibility 0.28s;
+  }
+
+  body[dir="ltr"] .sidebar {
+    right: auto;
+    left: 0;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.55);
+  }
+
+  body[dir="ltr"] .sidebar.open {
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.55);
+  }
+
+  .btn-close-sidebar {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    cursor: pointer;
+    margin-inline-start: auto;
+    transition: background 0.2s;
+  }
+
+  .btn-close-sidebar:hover,
+  .btn-close-sidebar:active {
+    background: rgba(239, 68, 68, 0.4);
+  }
+
+  /* Top Header on Mobile */
+  .top-header {
+    height: 58px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .header-title-container {
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .page-title {
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 135px;
+  }
+
+  .header-actions {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 35px;
+    height: 35px;
+    padding: 0;
+  }
+
+  .icon-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  #btn-switch-worker-header {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  #btn-switch-worker-header .worker-label {
+    display: none;
+  }
+
+  /* Content & Panels */
+  .content-area {
+    padding: 12px 10px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .card-panel {
+    padding: 14px 12px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+  }
+
+  .panel-header {
+    margin-bottom: 14px;
+    gap: 10px;
+  }
+
+  .kpi-card {
+    padding: 14px 16px;
+  }
+
+  .kpi-value {
+    font-size: 1.45rem;
+  }
+
+  .dashboard-kpi-grid,
+  .grid-cols-4,
+  .grid-cols-3,
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .search-wrapper {
+    min-width: 0;
+  }
+
+  /* Table Container Touch Scroll */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: block;
+  }
+
+  .custom-table th,
+  .custom-table td {
+    padding: 10px 12px;
+    font-size: 0.82rem;
+  }
+
+  /* POS Mobile Layout */
+  .pos-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .pos-cart-panel {
+    position: static;
+    top: auto;
+    margin-top: 16px;
+  }
+
+  .pos-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+
+  .pos-product-card {
+    padding: 12px 10px;
+  }
+
+  .pos-product-name {
+    font-size: 0.85rem;
+  }
+
+  .pos-product-price {
+    font-size: 0.95rem;
+  }
+
+  .pos-product-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .pos-action-bar {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pos-search-wrapper {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .pos-action-buttons {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .pos-action-buttons .btn {
+    flex: 1;
+    font-size: 0.82rem;
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    max-width: 100px;
+    font-size: 0.92rem;
+  }
+
+  #header-worker-role {
+    display: none;
+  }
+
+  #btn-switch-worker-header {
+    padding: 4px 6px;
+    font-size: 0.75rem;
+  }
+
+  .top-header {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  #btn-toggle-dir {
+    padding: 0 4px;
+  }
+
+  #btn-toggle-dir span {
+    font-size: 0.68rem !important;
+  }
+
+  .alerts-filter-group {
+    width: 100%;
+  }
+
+  .alerts-filter-group .btn {
+    flex: 1 1 auto;
+    font-size: 0.72rem;
+    padding: 4px 8px;
+  }
+
+  .login-screen-wrapper {
+    padding: 12px;
+  }
+
+  .login-card-container {
+    padding: 24px 16px;
+  }
+
+  .login-title {
+    font-size: 1.45rem;
+  }
 }
 
 /* Metric / KPI Cards */
